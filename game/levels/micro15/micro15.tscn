@@ -1,6 +1,142 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=20 format=3]
 
-[ext_resource type="Script" path="res://levels/micro15/micro15.gd" id="1"]
+[ext_resource type="Script" path="res://levels/micro15/micro15.gd" id="1_level"]
+[ext_resource type="Environment" path="res://style/world_environment.tres" id="2_env"]
+[ext_resource type="Material" path="res://style/lawn.tres" id="3_lawn"]
+[ext_resource type="PackedScene" path="res://levels/micro15/ground.glb" id="4_ground"]
+[ext_resource type="PackedScene" path="res://levels/micro15/buildings.glb" id="5_buildings"]
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="6_styled"]
+[ext_resource type="Script" path="res://scripts/scatter.gd" id="7_scatter"]
+[ext_resource type="PackedScene" path="res://levels/micro15/details.glb" id="8_details"]
+[ext_resource type="PackedScene" path="res://levels/micro15/props.glb" id="9_props"]
+[ext_resource type="Script" path="res://scripts/grass_field.gd" id="10_grass"]
+[ext_resource type="Texture2D" path="res://levels/micro15/grass_mask.png" id="11_mask"]
+[ext_resource type="Material" path="res://style/ink_outline.tres" id="12_ink"]
+[ext_resource type="PackedScene" path="res://levels/micro15/placed.tscn" id="13_placed"]
+[ext_resource type="PackedScene" path="res://player/player.tscn" id="14_player"]
+
+[sub_resource type="PlaneMesh" id="outer_plane"]
+size = Vector2(4000, 4000)
+
+[sub_resource type="QuadMesh" id="ink_quad"]
+size = Vector2(2, 2)
+
+[sub_resource type="BoxShape3D" id="wall_x"]
+size = Vector3(1280, 60, 2)
+
+[sub_resource type="BoxShape3D" id="wall_z"]
+size = Vector3(2, 60, 1210)
 
 [node name="Micro15" type="Node3D"]
-script = ExtResource("1")
+script = ExtResource("1_level")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("2_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, 0, -0.573576, -0.42625, 0.669131, -0.608749, 0.383798, 0.743145, 0.54812, 0, 0, 0)
+light_color = Color(1, 0.97, 0.9, 1)
+shadow_enabled = true
+shadow_bias = 0.08
+shadow_normal_bias = 2.5
+shadow_blur = 1.5
+directional_shadow_split_1 = 0.03
+directional_shadow_split_2 = 0.1
+directional_shadow_split_3 = 0.3
+directional_shadow_blend_splits = true
+directional_shadow_max_distance = 220.0
+
+[node name="OuterLawn" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
+mesh = SubResource("outer_plane")
+surface_material_override/0 = ExtResource("3_lawn")
+
+[node name="Ground" parent="." instance=ExtResource("4_ground")]
+script = ExtResource("6_styled")
+solid = true
+
+[node name="Buildings" parent="." instance=ExtResource("5_buildings")]
+script = ExtResource("6_styled")
+solid = true
+
+[node name="Details" type="Node3D" parent="."]
+script = ExtResource("7_scatter")
+library = ExtResource("8_details")
+data = "res://levels/micro15/details.json"
+view_ranges = {
+"win": 450.0,
+"win_brown": 450.0,
+"baldoor": 450.0,
+"balcony_open": 650.0,
+"balcony_closed": 650.0,
+"roof_hut": 650.0,
+"entrance": 300.0,
+"shopfront": 400.0,
+"garage_door": 300.0,
+"curtain": 220.0,
+"pipe": 250.0,
+"antenna": 300.0,
+"ac": 180.0,
+"dish": 180.0,
+"pots": 120.0,
+"vent": 120.0
+}
+no_shadows = PackedStringArray("garage_door", "curtain", "pipe", "antenna", "vent")
+tinted = PackedStringArray("C3_glass", "C3_curtain_c", "C3_parapet_white", "C3_garage_door")
+
+[node name="Props" type="Node3D" parent="."]
+script = ExtResource("7_scatter")
+library = ExtResource("9_props")
+data = "res://levels/micro15/props.json"
+format = "props"
+view_ranges = {
+"tree_a": 700.0,
+"tree_b": 700.0,
+"tree_c": 700.0,
+"poplar": 700.0,
+"bush_a": 220.0,
+"bush_b": 220.0,
+"lamp": 250.0,
+"bench": 140.0
+}
+solid = {
+"tree_a": 0.35,
+"tree_b": 0.4,
+"tree_c": 0.3,
+"poplar": 0.3,
+"lamp": 0.15
+}
+
+[node name="Grass" type="Node3D" parent="."]
+script = ExtResource("10_grass")
+mask = ExtResource("11_mask")
+size_m = 1280.0
+
+[node name="Bounds" type="StaticBody3D" parent="."]
+
+[node name="North" type="CollisionShape3D" parent="Bounds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30, -605)
+shape = SubResource("wall_x")
+
+[node name="South" type="CollisionShape3D" parent="Bounds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30, 605)
+shape = SubResource("wall_x")
+
+[node name="West" type="CollisionShape3D" parent="Bounds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -640, 30, 0)
+shape = SubResource("wall_z")
+
+[node name="East" type="CollisionShape3D" parent="Bounds"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 640, 30, 0)
+shape = SubResource("wall_z")
+
+[node name="Placed" parent="." instance=ExtResource("13_placed")]
+
+[node name="InkOutline" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+extra_cull_margin = 16384.0
+mesh = SubResource("ink_quad")
+surface_material_override/0 = ExtResource("12_ink")
+
+[node name="Player" parent="." instance=ExtResource("14_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 128.5, 0.3, -345.5)

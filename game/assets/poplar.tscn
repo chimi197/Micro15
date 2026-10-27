@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_wf1yi"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/poplar.res" id="2_xcccm"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_8f2xg"]
+height = 3.0
+radius = 0.3
+
+[node name="poplar" type="StaticBody3D" unique_id=1632970243]
+script = ExtResource("1_wf1yi")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=816061434]
+mesh = ExtResource("2_xcccm")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=782682955]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("CylinderShape3D_8f2xg")

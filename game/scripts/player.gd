@@ -1,93 +1,72 @@
 ## Third-person player: the boy from docs/character_sheet.png
 ## (characters/kid/kid.glb and kid.json, built by blender/build_character.py).
-## WASD to move, mouse to look, Shift to run, Space to jump, Esc frees the
-## mouse. Plays idle / walk / run / jump / fall / land, with the walk and
-## run cycles sped up or slowed down to match the ground speed and switched
-## at the same point of the stride. The body leans into turns and speed
-## changes, and the hair bounces on spring bones.
+## The scene is player/player.tscn: collision capsule, the model and a
+## camera on a spring arm.
+##
+## WASD to move, mouse to look, Shift to run, Space to jump and Space again
+## in the air for a double jump, Ctrl or C to crouch, left click or F to
+## punch (jab, then a cross if pressed again quickly), Esc frees the mouse.
+##
+## Walk, run and crouch-walk cycles are sped up or slowed down to match the
+## ground speed and switched at the same point of the stride. The body
+## leans into turns and speed changes, and the hair bounces on spring bones.
 ##
 ## Clothes are separate meshes: wear() shows a set of garments and hides the
 ## body pieces they cover, so outfits and accessories can be swapped.
 extends CharacterBody3D
 
-const MODEL := preload("res://characters/kid/kid.glb")
 const INFO := "res://characters/kid/kid.json"
-const LOOPS := ["idle", "walk", "run", "fall"]
+const LOOPS := ["idle", "walk", "run", "fall", "crouch_idle", "crouch_walk"]
+const STRIDES := ["walk", "run", "crouch_walk"]
 const COYOTE_TIME := 0.15                ## seconds off the ground before the fall pose starts
+const STAND_HEIGHT := 1.5
+const CROUCH_HEIGHT := 1.0
 
-@export var walk_speed := 1.4
-@export var run_speed := 4.2
+@export var walk_speed := 1.1
+@export var run_speed := 3.6
+@export var crouch_speed := 0.6
 @export var jump_velocity := 4.6
+@export var double_jump_velocity := 4.2
 @export var acceleration := 14.0
+@export var air_control := 0.5          ## share of the ground acceleration available in the air
 @export var turn_speed := 10.0
 @export var mouse_sensitivity := 0.003
+@export var noclip := false             ## set by the admin tool: fly through everything
 
-var camera_pivot: Node3D
-var spring_arm: SpringArm3D
-var camera: Camera3D
-var body_mesh: Node3D
+@onready var camera_pivot: Node3D = $CameraPivot
+@onready var spring_arm: SpringArm3D = $CameraPivot/SpringArm
+@onready var camera: Camera3D = $CameraPivot/SpringArm/Camera
+@onready var body_mesh: Node3D = $Model
+@onready var collision: CollisionShape3D = $Collision
 var anim: AnimationPlayer
 var skeleton: Skeleton3D
 var springs: SpringBoneSimulator3D
 var info: Dictionary                     ## kid.json: gait speeds, garments, body pieces, spring bones
 var outfit: Array = []
+var crouching := false
+var speed_multiplier := 1.0              ## the admin tool's speed boost
 
 var _air_time := 0.0
-var _landing := 0.0
+var _locked := 0.0                       # seconds left of a clip that must finish (land, punch, hit)
+var _double_jumped := false
+var _combo := 0                          # punches thrown in a row
+var _combo_window := 0.0
 var _lean := Vector2.ZERO                # forward pitch, side roll
 var _last_yaw := 0.0
 var _last_speed := 0.0
 
 
 func _ready() -> void:
-	var shape := CollisionShape3D.new()
-	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.28
-	capsule.height = 1.5
-	shape.shape = capsule
-	shape.position.y = 0.75
-	add_child(shape)
-
 	info = JSON.parse_string(FileAccess.get_file_as_string(INFO))
-	body_mesh = MODEL.instantiate()
-	add_child(body_mesh)
-	WorldStyle.new().apply(body_mesh)
 	anim = body_mesh.find_child("AnimationPlayer", true, false)
 	for anim_name in LOOPS:
-		anim.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
+		if anim.has_animation(anim_name):
+			anim.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 	anim.play("idle")
 	skeleton = body_mesh.find_child("Skeleton3D", true, false)
 	_add_hair_springs()
 	wear(info.outfit)
-
-	camera_pivot = Node3D.new()
-	camera_pivot.position.y = 1.3
-	add_child(camera_pivot)
-	spring_arm = SpringArm3D.new()
-	spring_arm.spring_length = 3.6
-	spring_arm.rotation.x = -0.22
 	spring_arm.add_excluded_object(get_rid())
-	camera_pivot.add_child(spring_arm)
-	camera = Camera3D.new()
-	camera.fov = 60
-	camera.far = 3000
-	spring_arm.add_child(camera)
-
-	for action in ["move_forward", "move_back", "move_left", "move_right", "run", "jump"]:
-		if not InputMap.has_action(action):
-			InputMap.add_action(action)
-	_bind("move_forward", KEY_W)
-	_bind("move_back", KEY_S)
-	_bind("move_left", KEY_A)
-	_bind("move_right", KEY_D)
-	_bind("run", KEY_SHIFT)
-	_bind("jump", KEY_SPACE)
-
-
-func _bind(action: String, key: Key) -> void:
-	var ev := InputEventKey.new()
-	ev.physical_keycode = key
-	InputMap.action_add_event(action, ev)
 
 
 ## Shows the listed garments (node names from kid.json) and hides the rest,
@@ -129,8 +108,9 @@ func _add_hair_springs() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -139,25 +119,87 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	var jumped := false
-	if not is_on_floor():
-		velocity += get_gravity() * delta
-	elif Input.is_action_just_pressed("jump"):
-		velocity.y = jump_velocity
-		jumped = true
+	if noclip:
+		_fly(delta)
+		return
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := camera_pivot.global_basis * Vector3(input.x, 0, input.y)
 	dir.y = 0
 	dir = dir.normalized()
+	_set_crouch(Input.is_action_pressed("crouch") and is_on_floor())
+
+	var event := ""
+	if is_on_floor():
+		_double_jumped = false
+		if Input.is_action_just_pressed("jump") and not crouching:
+			velocity.y = jump_velocity
+			event = "jump"
+	else:
+		velocity += get_gravity() * delta
+		if Input.is_action_just_pressed("jump") and not _double_jumped and _air_time > 0.08:
+			velocity.y = double_jump_velocity
+			_double_jumped = true
+			event = "double_jump"
+	if Input.is_action_just_pressed("punch") and is_on_floor() and not crouching and not Admin.building:
+		event = "punch"
+
 	var speed := run_speed if Input.is_action_pressed("run") else walk_speed
-	var target := dir * speed
-	velocity.x = move_toward(velocity.x, target.x, acceleration * delta)
-	velocity.z = move_toward(velocity.z, target.z, acceleration * delta)
+	if crouching:
+		speed = crouch_speed
+	if _locked > 0.0 and anim.current_animation.begins_with("punch"):
+		speed *= 0.2
+	var target := dir * speed * speed_multiplier
+	var accel := acceleration * (1.0 if is_on_floor() else air_control)
+	velocity.x = move_toward(velocity.x, target.x, accel * delta)
+	velocity.z = move_toward(velocity.z, target.z, accel * delta)
 	if dir.length() > 0.1:
 		body_mesh.rotation.y = lerp_angle(body_mesh.rotation.y, atan2(dir.x, dir.z), turn_speed * delta)
 	move_and_slide()
-	_animate(delta, jumped)
+	_animate(delta, event)
 	_lean_body(delta)
+
+
+## Admin noclip: fly where the camera looks, through walls. Space up,
+## Ctrl down, Shift fast.
+func _fly(delta: float) -> void:
+	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var dir := camera.global_basis * Vector3(input.x, 0, input.y)
+	if Input.is_action_pressed("jump"):
+		dir.y += 1.0
+	if Input.is_action_pressed("crouch"):
+		dir.y -= 1.0
+	var speed := (40.0 if Input.is_action_pressed("run") else 10.0) * speed_multiplier
+	velocity = dir.normalized() * speed if dir.length() > 0.01 else Vector3.ZERO
+	global_position += velocity * delta
+	_play("fall", 0.2)
+
+
+func set_noclip(on: bool) -> void:
+	noclip = on
+	collision.disabled = on
+	velocity = Vector3.ZERO
+
+
+func _set_crouch(on: bool) -> void:
+	if on == crouching:
+		return
+	if not on and _blocked_above():
+		return
+	crouching = on
+	var capsule := collision.shape as CapsuleShape3D
+	capsule.height = CROUCH_HEIGHT if on else STAND_HEIGHT
+	collision.position.y = capsule.height / 2.0
+
+
+## True when there is no room to stand up.
+func _blocked_above() -> bool:
+	return test_move(global_transform, Vector3.UP * (STAND_HEIGHT - CROUCH_HEIGHT))
+
+
+## Plays the hit reaction (for when something hits the player).
+func take_hit() -> void:
+	_play("hit", 0.05)
+	_locked = anim.current_animation_length * 0.8
 
 
 ## Leans into turns (more the faster he goes) and forward when speeding up,
@@ -169,35 +211,59 @@ func _lean_body(delta: float) -> void:
 	_last_yaw = body_mesh.rotation.y
 	_last_speed = ground_speed
 	var target := Vector2.ZERO
-	if is_on_floor():
-		target = Vector2(clampf(accel * 0.012, -0.12, 0.12), clampf(-yaw_rate * ground_speed * 0.012, -0.2, 0.2))
+	if is_on_floor() and not crouching:
+		target = Vector2(clampf(accel * 0.01, -0.1, 0.1), clampf(-yaw_rate * ground_speed * 0.01, -0.16, 0.16))
 	_lean = _lean.lerp(target, 1.0 - exp(-8.0 * delta))
 	body_mesh.rotation.x = _lean.x
 	body_mesh.rotation.z = _lean.y
 
 
-func _animate(delta: float, jumped: bool) -> void:
+func _animate(delta: float, event: String) -> void:
 	var ground_speed := Vector2(velocity.x, velocity.z).length()
-	if jumped:
-		_air_time = COYOTE_TIME
-		_play("jump", 0.08)
-		return
+	_combo_window -= delta
+	match event:
+		"jump":
+			_air_time = COYOTE_TIME
+			_locked = 0.0
+			_play("jump", 0.08)
+			return
+		"double_jump":
+			_play("double_jump", 0.05)
+			return
+		"punch":
+			# a new punch once the last one has landed; quickly after it, a cross
+			if _locked <= 0.15 or (anim.current_animation.begins_with("punch") and _locked <= 0.3):
+				_combo = _combo + 1 if _combo_window > 0.0 else 1
+				var clip := "punch_cross" if _combo % 2 == 0 else "punch_jab"
+				anim.stop()
+				_play(clip, 0.06)
+				_locked = anim.current_animation_length * 0.75
+				_combo_window = anim.current_animation_length + 0.25
+				return
 	if not is_on_floor():
 		_air_time += delta
-		# the jump clip ends in the air pose; carry on with the fall loop
-		if _air_time >= COYOTE_TIME and anim.current_animation != "jump":
-			_play("fall", 0.2)
+		# the jump clips end in the air pose; carry on with the fall loop
+		if _air_time >= COYOTE_TIME and not anim.current_animation in ["jump", "double_jump"]:
+			_play("fall", 0.25)
 		return
-	if _air_time >= COYOTE_TIME and ground_speed < 1.0:
-		_landing = anim.get_animation("land").length
-		_play("land", 0.06)
+	if _air_time >= COYOTE_TIME:
+		_locked = 0.0
+		if ground_speed < 1.0:
+			_play("land", 0.06)
+			_locked = anim.current_animation_length * 0.6
 	_air_time = 0.0
-	if _landing > 0.0:
-		_landing -= delta
+	if _locked > 0.0:
+		_locked -= delta
 		return
-	if ground_speed < 0.2:
+	if crouching:
+		if ground_speed < 0.15:
+			_play("crouch_idle", 0.2)
+		else:
+			_play("crouch_walk", 0.2, true)
+			anim.speed_scale = clampf(ground_speed / info.gait_speed.crouch_walk, 0.5, 2.0)
+	elif ground_speed < 0.2:
 		_play("idle", 0.25)
-	elif ground_speed <= walk_speed + 0.4:
+	elif ground_speed <= walk_speed * speed_multiplier + 0.4:
 		_play("walk", 0.25, true)
 		anim.speed_scale = clampf(ground_speed / info.gait_speed.walk, 0.5, 1.8)
 	else:
@@ -205,14 +271,14 @@ func _animate(delta: float, jumped: bool) -> void:
 		anim.speed_scale = clampf(ground_speed / info.gait_speed.run, 0.6, 1.6)
 
 
-## Cross-fades to another clip. With keep_phase, a walk/run switch starts
-## the new cycle at the same point of the stride (both start on the left
-## heel), so the feet do not skip.
+## Cross-fades to another clip. With keep_phase, a switch between stride
+## cycles starts the new one at the same point of the stride (all start on
+## the same foot), so the feet do not skip.
 func _play(anim_name: String, blend: float, keep_phase := false) -> void:
 	if anim.current_animation == anim_name:
 		return
 	var phase := -1.0
-	if keep_phase and anim.current_animation in ["walk", "run"]:
+	if keep_phase and anim.current_animation in STRIDES:
 		phase = anim.current_animation_position / anim.current_animation_length
 	anim.speed_scale = 1.0
 	anim.play(anim_name, blend)

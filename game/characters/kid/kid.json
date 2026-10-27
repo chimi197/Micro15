@@ -1,7 +1,8 @@
 {
  "gait_speed": {
-  "walk": 1.256,
-  "run": 3.889
+  "walk": 0.654,
+  "run": 2.634,
+  "crouch_walk": 0.351
  },
  "body_parts": {
   "base": "body_base",

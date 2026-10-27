@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_f72qc"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/bollard.res" id="2_dn8wd"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_wvo4p"]
+height = 3.0
+radius = 0.09
+
+[node name="bollard" type="StaticBody3D" unique_id=2127108177]
+script = ExtResource("1_f72qc")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=151618897]
+mesh = ExtResource("2_dn8wd")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=486037332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("CylinderShape3D_wvo4p")

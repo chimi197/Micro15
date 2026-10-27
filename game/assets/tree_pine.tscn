@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_v158m"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/tree_pine.res" id="2_uvyjf"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_rmlrl"]
+height = 3.0
+
+[node name="tree_pine" type="StaticBody3D" unique_id=2026500035]
+script = ExtResource("1_v158m")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1722729883]
+mesh = ExtResource("2_uvyjf")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1587441111]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("CylinderShape3D_rmlrl")

@@ -30,7 +30,7 @@ func _ready() -> void:
 	grass.max_radius = 170.0
 	add_child(grass)
 	WorldStyle.add_ink_outline(self)
-	player = preload("res://scripts/player.gd").new()
+	player = preload("res://player/player.tscn").instantiate()
 	player.position = Vector3(18, 0.3, 9)
 	add_child(player)
 	if "--shots" in OS.get_cmdline_user_args():

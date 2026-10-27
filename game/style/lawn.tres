@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" load_steps=4 format=3]
+
+[ext_resource type="Shader" path="res://shaders/lawn.gdshader" id="1"]
+
+[sub_resource type="FastNoiseLite" id="noise"]
+frequency = 0.02
+
+[sub_resource type="NoiseTexture2D" id="noise_tex"]
+seamless = true
+noise = SubResource("noise")
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/tint = Color(0.549, 0.769, 0.337, 1)
+shader_parameter/shadow_tint = Color(0.7, 0.72, 0.9, 1)
+shader_parameter/noise_tex = SubResource("noise_tex")

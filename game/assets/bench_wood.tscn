@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_x1whp"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/bench_wood.res" id="2_nxcty"]
+[ext_resource type="Shape3D" path="res://assets/meshes/bench_wood_shape.res" id="3_ttmx8"]
+
+[node name="bench_wood" type="StaticBody3D" unique_id=1426026180]
+script = ExtResource("1_x1whp")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1932397648]
+mesh = ExtResource("2_nxcty")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1741424282]
+shape = ExtResource("3_ttmx8")

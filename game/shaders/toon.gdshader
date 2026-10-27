@@ -1,5 +1,6 @@
 // Cel shading for 3D models: flat colour (or texture) with three hard light
-// bands (lit / half / shadow) plus sun shadows. No specular.
+// bands (lit / half / shadow) plus sun shadows. No specular. The band edges
+// are a few degrees wide so they stay smooth on distant and moving surfaces.
 shader_type spatial;
 render_mode cull_back, specular_disabled;
 
@@ -34,8 +35,8 @@ void fragment() {
 
 void light() {
 	float ndl = dot(NORMAL, LIGHT);
-	float facing = smoothstep(0.0, 0.03, ndl);
-	float full = smoothstep(half_band - 0.02, half_band + 0.02, ndl);
+	float facing = smoothstep(-0.02, 0.06, ndl);
+	float full = smoothstep(half_band - 0.045, half_band + 0.045, ndl);
 	float lit = facing * mix(half_level, 1.0, full) * smoothstep(0.4, 0.6, ATTENUATION);
 	DIFFUSE_LIGHT += lit * (vec3(1.0) - shadow_tint) * LIGHT_COLOR / PI;
 }

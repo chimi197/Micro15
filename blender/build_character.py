@@ -17,15 +17,15 @@ Built in layers, like a game character with an outfit system:
   hides; anything built the same way (another outfit, an accessory) can be
   added later without touching the body.
 
-Animations are procedural: walk and run plant the feet with two-bone IK
-(heel strike, roll, toe-off), with pelvis bob, sway, twist and drop,
-counter-rotating spine, arm swing with follow-through, and a stabilised
-head; jump, fall and land add a tuck and a squash on landing; idle breathes
-and shifts weight. Every frame is keyed, loops are seamless.
+Animations are retargeted (retarget_ual.py) from Quaternius' Universal
+Animation Library 1 and 2, CC0 clips animated for game characters: idle,
+walk, sprint, jump start / loop / land, a mid-air flip for the double jump,
+crouch idle and walk, jab and cross punches and a hit reaction (CLIPS).
+They are sampled at 30 fps, scaled to the boy's leg length and set on the
+ground; the cycles' ground speeds go to kid.json so the game can match them.
 
 The rest pose holds the arms a little away from the body (ARM_SPREAD) so the
-weights and garments are clean under the armpits; the animations are written
-for arms hanging closer and compensate for it.
+weights and garments are clean under the armpits.
 
 The boy faces -Y in Blender (+Z in Godot), 1 unit = 1 m, about 1.5 m tall.
 Writes game/characters/kid/kid.glb and kid.json.
@@ -43,6 +43,8 @@ import random
 from mathutils import Euler, Matrix, Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.interpolate import poly_3d_calc
+
+import retarget_ual
 
 FPS = 30
 COLOURS = {
@@ -1115,290 +1117,102 @@ def build_armature(scn):
     return arm
 
 
-def Rx(a):
-    return Matrix.Rotation(a, 3, "X")
-
-
-def euler(x=0.0, y=0.0, z=0.0):
-    return Euler((x, y, z), "XYZ").to_matrix()
-
-
-class Pose:
-    """Local rotations (armature axes, relative to the parent at rest),
-    world rotations for IK'd bones, and the hips offset."""
-
-    def __init__(self):
-        self.local = {}
-        self.world = {}
-        self.loc = V(0, 0, 0)
-
-    def rot(self, bone, x=0.0, y=0.0, z=0.0):
-        o = self.local.get(bone, (0.0, 0.0, 0.0))
-        self.local[bone] = (o[0] + x, o[1] + y, o[2] + z)
-
-
-LEN_THIGH = (tail_of("thigh.L") - head_of("thigh.L")).length
-LEN_SHIN = (tail_of("shin.L") - head_of("shin.L")).length
+# ----------------------------------------------------------------------------
+# Animations: retargeted from the Universal Animation Library (CC0)
+# ----------------------------------------------------------------------------
+# name: (library file, clip, loops, lands on the ground)
+CLIPS = {
+    "idle": ("UAL1.glb", "Idle_Loop", True, True),
+    "walk": ("UAL1.glb", "Walk_Loop", True, True),
+    "run": ("UAL1.glb", "Sprint_Loop", True, True),
+    "jump": ("UAL1.glb", "Jump_Start", False, True),
+    "fall": ("UAL1.glb", "Jump_Loop", True, False),
+    "land": ("UAL1.glb", "Jump_Land", False, True),
+    "double_jump": ("UAL2.glb", "NinjaJump_Start", False, False),
+    "crouch_idle": ("UAL1.glb", "Crouch_Idle_Loop", True, True),
+    "crouch_walk": ("UAL1.glb", "Crouch_Fwd_Loop", True, True),
+    "punch_jab": ("UAL1.glb", "Punch_Jab", False, True),
+    "punch_cross": ("UAL1.glb", "Punch_Cross", False, True),
+    "hit": ("UAL1.glb", "Hit_Chest", False, True),
+}
+GAITS = ("walk", "run", "crouch_walk")
+ARM_OUT = 0.04                       # radians the arms are held further out than the source (wider torso)
+HEAD_UP = 0.16                       # radians the head is tilted up from the source
 HEEL_REL = V(0, 0.058, -0.085)       # heel contact point, from the ankle
 BALL_REL = V(0, -0.07, -0.085)       # ball of the foot, from the ankle
-IK_STATS = {"clamped": 0, "max_reach": 0.0}
-# brings the spread rest-pose arms back to where the poses below expect them
-ARM_REST = {"upper_arm.L": Matrix.Rotation(ARM_SPREAD, 3, "Y"), "upper_arm.R": Matrix.Rotation(-ARM_SPREAD, 3, "Y")}
 
 
-def ankle_on_ground(x, y_flat, pitch):
-    """Ankle position for a foot planted at y_flat (ankle y when flat) with the
-    given pitch: rolls on the heel when toe-up, on the ball when heel-up."""
-    rel = HEEL_REL if pitch < 0 else BALL_REL
-    pivot = V(x, y_flat, 0.085) + rel
-    return pivot - Rx(pitch) @ rel
+def _contacts(arm, mats):
+    """Heel and ball positions of both feet for one pose."""
+    pts = []
+    for s, _ in SIDES:
+        rest = arm.data.bones["foot." + s].matrix_local
+        for rel in (HEEL_REL, BALL_REL):
+            local = rest.inverted() @ (rest.translation + rel)
+            pts.append(mats["foot." + s] @ local)
+    return pts
 
 
-def leg_ik(pose, s, ankle, pitch, toe=0.0):
-    hips_w = euler(*pose.local.get("hips", (0, 0, 0)))
-    hh = head_of("hips")
-    H = hh + pose.loc + hips_w @ (head_of("thigh." + s) - hh)
-    d = ankle - H
-    reach = d.length / (LEN_THIGH + LEN_SHIN)
-    IK_STATS["max_reach"] = max(IK_STATS["max_reach"], reach)
-    D = min(max(d.length, 0.1), LEN_THIGH + LEN_SHIN - 0.001)
-    if d.length > D:
-        IK_STATS["clamped"] += 1
-    dn = d.normalized()
-    ca = (LEN_THIGH ** 2 + D ** 2 - LEN_SHIN ** 2) / (2 * LEN_THIGH * D)
-    a = math.acos(min(1.0, max(-1.0, ca)))
-    pole = V(0, -1, 0)
-    p = (pole - dn * pole.dot(dn)).normalized()
-    knee = H + (dn * math.cos(a) + p * math.sin(a)) * LEN_THIGH
-    end = H + dn * D
-    rest_t = bone_dir("thigh." + s)
-    rest_s = bone_dir("shin." + s)
-    pose.world["thigh." + s] = rest_t.rotation_difference((knee - H).normalized()).to_matrix()
-    pose.world["shin." + s] = rest_s.rotation_difference((end - knee).normalized()).to_matrix()
-    pose.world["foot." + s] = Rx(pitch)
-    pose.world["toe." + s] = Rx(toe)
-
-
-def head_level(pose, pitch=0.0, yaw=0.0):
-    """Keep the head looking ahead whatever the spine does (set as world rotations)."""
-    pose.world["head"] = Matrix.Rotation(yaw, 3, "Z") @ Rx(pitch)
-    pose.world["neck"] = "half"
-
-
-def resolve(pose, rest):
-    """Pose -> {bone: quaternion} for keying."""
-    W, out = {}, {}
-    for name, (_, _, parent, _) in BONES.items():
-        Wp = W[parent] if parent else Matrix.Identity(3)
-        tgt = pose.world.get(name)
-        if isinstance(tgt, Matrix):
-            R = Wp.transposed() @ tgt
-            Wb = tgt
-        elif tgt == "half":
-            head_w = pose.world["head"]
-            Wb = Wp.to_quaternion().slerp(head_w.to_quaternion(), 0.5).to_matrix()
-            R = Wp.transposed() @ Wb
-        else:
-            R = euler(*pose.local.get(name, (0.0, 0.0, 0.0)))
-            if name in ARM_REST:
-                R = R @ ARM_REST[name]
-            Wb = Wp @ R
-        W[name] = Wb
-        M = rest[name]
-        out[name] = (M.transposed() @ R @ M).to_quaternion()
-    return out
-
-
-GAITS = {
-    "walk": dict(frames=21, stance=0.58, front=0.23, back=0.28, hs=-0.3, ho=0.5, to=0.6,
-                 swing=[(0.3, (-0.12, 0.135, 0.45)), (0.55, (0.04, 0.158, 0.1)), (0.8, (0.18, 0.125, -0.22))],
-                 bob=(-0.03, 0.011, 0.45), sway=0.012, yaw=0.09, roll=0.05, tilt=0.03,
-                 arm=0.36, lag=0.06, elbow=(-0.2, -0.3), arm_out=-0.06, fingers=0.35, lean=0.03, head=-0.03),
-    "run": dict(frames=18, stance=0.24, front=0.24, back=0.32, hs=-0.1, ho=0.2, to=0.75,
-                swing=[(0.28, (-0.27, 0.30, 1.05)), (0.55, (-0.02, 0.35, 0.65)), (0.8, (0.21, 0.21, 0.1))],
-                bob=(-0.05, -0.035, 0.15), sway=0.006, yaw=0.13, roll=0.04, tilt=0.1,
-                arm=0.7, lag=0.04, elbow=(-1.35, -0.3), arm_out=-0.12, fingers=1.3, lean=0.16, head=-0.14),
-}
-
-
-def gait_foot(g, u, x):
-    """Ankle target and foot pitch for one foot at local phase u (0 = heel strike)."""
-    st = g["stance"]
-    y0 = head_of("foot.L").y
-    if u < st:
-        s = u / st
-        y_flat = y0 - g["front"] + (g["front"] + g["back"]) * s
-        if s < 0.15:
-            pitch = lerp(g["hs"], 0.0, smoothstep(0.0, 0.15, s))
-        elif s > g["ho"]:
-            pitch = lerp(0.0, g["to"], smoothstep(g["ho"], 1.0, s))
-        else:
-            pitch = 0.0
-        return ankle_on_ground(x, y_flat, pitch), pitch, (-pitch if pitch > 0 else 0.0)
-    w = (u - st) / (1 - st)
-    start = ankle_on_ground(x, y0 + g["back"], g["to"])
-    end = ankle_on_ground(x, y0 - g["front"], g["hs"])
-    pts = [(0.0, V(-(start.y - y0), start.z, g["to"]))]
-    pts += [(ws, V(f, z, p)) for ws, (f, z, p) in g["swing"]]
-    pts += [(1.0, V(-(end.y - y0), end.z, g["hs"]))]
-    c = catmull(pts, w)
-    toe = -0.3 * math.sin(math.pi * min(1.0, w / 0.4)) if w < 0.4 else 0.0
-    return V(x, y0 - c.x, c.y), c.z, toe
-
-
-def locomotion(name, ph):
-    g = GAITS[name]
-    P = Pose()
-    c = math.cos(2 * math.pi * ph)
-    s = math.sin(2 * math.pi * ph)
-    q = (2 * ph) % 1.0
-    base, amp, low = g["bob"]
-    P.loc = V(g["sway"] * s, 0, base + amp * math.cos(2 * math.pi * (q - low - 0.5)))
-    P.rot("hips", x=g["tilt"], y=-g["roll"] * s, z=-g["yaw"] * c)
-    for side, k, off in (("L", 1, 0.0), ("R", -1, 0.5)):
-        ankle, pitch, toe = gait_foot(g, (ph - off) % 1.0, k * 0.092)
-        leg_ik(P, side, ankle, pitch, toe)
-    # spine counter-rotates the pelvis; chest bounces just after each contact
-    for b, share in (("spine", 0.3), ("spine1", 0.3), ("chest", 0.4)):
-        P.rot(b, x=g["lean"] * share, y=g["roll"] * 0.5 * share * s, z=(g["yaw"] * 1.5) * share * c)
-    P.rot("chest", x=0.012 * math.cos(2 * math.pi * (q - 0.2)))
-    lag = g["lag"]
-    for side, k in SIDES:
-        sw = k * math.cos(2 * math.pi * (ph - lag))           # +: arm back
-        P.rot("shoulder." + side, z=0.06 * k * sw, y=-k * 0.015 * abs(sw))
-        P.rot("upper_arm." + side, x=g["arm"] * sw, y=k * g["arm_out"], z=k * 0.05 * sw)
-        fwd = max(0.0, -k * math.cos(2 * math.pi * (ph - lag * 2)))
-        base_e, extra = g["elbow"]
-        P.rot("forearm." + side, x=base_e + extra * fwd * fwd)
-        P.rot("hand." + side, x=0.08 * k * math.cos(2 * math.pi * (ph - lag * 3)))
-        P.rot("fingers." + side, y=k * g["fingers"])
-    head_level(P, pitch=g["head"] + 0.015 * math.cos(2 * math.pi * (q - 0.35)))
-    return P
-
-
-def idle(ph):
-    P = Pose()
-    s = math.sin(2 * math.pi * ph)
-    b = math.sin(2 * math.pi * 2 * ph)
-    P.loc = V(0.008 * s, 0, -0.014 + 0.002 * b)
-    P.rot("hips", y=0.025 * s, z=0.02 * math.sin(2 * math.pi * ph + 1))
-    leg_ik(P, "L", V(0.102, -0.013, 0.085), 0.0)
-    leg_ik(P, "R", V(-0.104, 0.032, 0.085), 0.0)
-    for bone, share in (("spine", 0.4), ("spine1", 0.3), ("chest", 0.3)):
-        P.rot(bone, x=(-0.01 + 0.012 * b) * share, y=-0.03 * s * share)
-    for side, k in SIDES:
-        P.rot("shoulder." + side, y=-k * 0.015 * (b + 1) / 2)
-        P.rot("upper_arm." + side, x=0.025 * math.sin(2 * math.pi * (ph - 0.1)), y=-k * 0.05)
-        P.rot("forearm." + side, x=-0.14 - 0.02 * math.sin(2 * math.pi * (ph - 0.18)))
-        P.rot("hand." + side, x=-0.05)
-        P.rot("fingers." + side, y=k * 0.3)
-    head_level(P, pitch=0.015 * math.sin(2 * math.pi * 2 * ph + 1), yaw=0.08 * math.sin(2 * math.pi * ph + 0.8))
-    return P
-
-
-def air_pose(P, tuck, arms_up, wave=0.0):
-    """Shared airborne pose: tuck 0 = legs extended, 1 = knees up."""
-    P.rot("thigh.L", x=lerp(0.15, -1.05, tuck) + 0.1 * wave)
-    P.rot("shin.L", x=lerp(0.1, 1.6, tuck) + 0.15 * wave)
-    P.rot("thigh.R", x=lerp(0.2, -0.55, tuck) - 0.1 * wave)
-    P.rot("shin.R", x=lerp(0.15, 1.15, tuck) - 0.15 * wave)
-    for side, k in SIDES:
-        P.world["foot." + side] = Rx(lerp(0.75, 0.35, tuck))
-        # arms swing up and out to the sides (a V), not forwards in front of the face
-        P.rot("upper_arm." + side, x=lerp(0.35, -0.35, arms_up) + 0.15 * wave * k, y=-k * lerp(0.1, 2.2, arms_up))
-        P.rot("forearm." + side, x=lerp(-0.3, -0.35, arms_up) - 0.1 * wave * k)
-        P.rot("shoulder." + side, y=-k * 0.08 * arms_up)
-        P.rot("fingers." + side, y=k * 0.5)
-
-
-def jump(t):
-    P = Pose()
-    e = 1 - (1 - t) ** 2
-    air_pose(P, smoothstep(0.1, 1.0, t), smoothstep(0.0, 0.8, max(0.0, t - 0.1)))
-    P.rot("spine", x=lerp(-0.08, 0.08, e))
-    P.rot("chest", x=lerp(-0.06, 0.06, e))
-    head_level(P, pitch=lerp(-0.15, -0.04, e))
-    return P
-
-
-def fall(ph):
-    P = Pose()
-    air_pose(P, 0.85, 0.75, math.sin(2 * math.pi * ph))
-    P.rot("spine", x=0.08)
-    P.rot("chest", x=0.05 + 0.02 * math.sin(2 * math.pi * ph))
-    head_level(P, pitch=-0.06)
-    return P
-
-
-def land(t):
-    P = Pose()
-    if t < 0.15:
-        a = (t / 0.15) ** 2
-    else:
-        u = (t - 0.15) / 0.85
-        a = 1 - smoothstep(0.0, 1.0, u) + 0.12 * math.sin(math.pi * min(1.0, u * 1.25)) * (1 - u)
-    a = max(-0.08, a)
-    P.loc = V(0, 0, -0.17 * a - 0.012)
-    P.rot("hips", x=0.18 * a)
-    leg_ik(P, "L", V(0.104, -0.015, 0.085), 0.0)
-    leg_ik(P, "R", V(-0.104, 0.02, 0.085), 0.0)
-    lagged = max(0.0, 1 - smoothstep(0.0, 1.0, (t - 0.25) / 0.75)) if t > 0.25 else smoothstep(0.0, 0.25, t)
-    P.rot("spine", x=0.2 * lagged)
-    P.rot("chest", x=0.15 * lagged)
-    for side, k in SIDES:
-        P.rot("upper_arm." + side, x=-0.6 * lagged, y=-k * 0.3 * lagged - k * 0.04)
-        P.rot("forearm." + side, x=-0.15 - 0.5 * lagged)
-        P.rot("fingers." + side, y=k * 0.4)
-    head_level(P, pitch=0.12 * lagged - 0.02)
-    return P
-
-
-ANIMATIONS = {   # name: (frames, loops, pose function of phase/progress in [0, 1])
-    "idle": (96, True, idle),
-    "walk": (GAITS["walk"]["frames"], True, lambda ph: locomotion("walk", ph)),
-    "run": (GAITS["run"]["frames"], True, lambda ph: locomotion("run", ph)),
-    "jump": (9, False, jump),
-    "fall": (36, True, fall),
-    "land": (14, False, land),
-}
-
-
-def gait_speed(name):
-    """Ground speed (m/s) at which the cycle's planted foot does not slide."""
-    g = GAITS[name]
-    return (g["front"] + g["back"]) / (g["stance"] * g["frames"] / FPS)
-
-
-def animate(arm):
-    rest = {b.name: b.matrix_local.to_3x3() for b in arm.data.bones}
+def animate(arm, root):
+    """Retargets every clip in CLIPS onto the rig as actions (one NLA track
+    each, so the glTF export keeps them all); returns the gait speeds."""
+    lib_scene, rigs = retarget_ual.load_library(root)
+    leg = (head_of("thigh.L") - head_of("foot.L")).length
     for pb in arm.pose.bones:
         pb.rotation_mode = "QUATERNION"
     ad = arm.animation_data_create()
     for t in list(ad.nla_tracks):
         ad.nla_tracks.remove(t)
-    for name, (frames, loops, fn) in ANIMATIONS.items():
+    speeds, stats = {}, {}
+    for name, (src, clip, loops, grounded) in CLIPS.items():
+        rig = rigs[src]
+        thigh = retarget_ual.BONE_MAPS[src]["thigh.L"]
+        foot = retarget_ual.BONE_MAPS[src]["foot.L"]
+        src_leg = (rig.data.bones[thigh].head_local - rig.data.bones[foot].head_local).length
+        frames, src_rest, src_hips = retarget_ual.sample(lib_scene, rig, clip)
+        poses = retarget_ual.retarget(arm, frames, src_rest, src_hips, src, leg / src_leg, ARM_OUT, HEAD_UP)
+        fks = [retarget_ual.forward_kinematics(arm, local, delta) for local, delta in poses]
+        lift = 0.0
+        if grounded:
+            lift = -min(min(p.z for p in _contacts(arm, m)) for m in fks)
+        if name in GAITS:
+            speeds[name] = round(_stance_speed(arm, fks), 3)
         old = bpy.data.actions.get(name)
         if old:
             bpy.data.actions.remove(old)
         action = bpy.data.actions.new(name)
         action.use_fake_user = True
         ad.action = action
-        for f in range(frames + 1):
-            P = fn(f / frames)
-            quats = resolve(P, rest)
+        rest_hips = arm.data.bones["hips"].matrix_local.to_3x3().inverted()
+        for f, (local, delta) in enumerate(poses):
             for pb in arm.pose.bones:
-                pb.rotation_quaternion = quats[pb.name]
+                pb.rotation_quaternion = local[pb.name]
                 pb.keyframe_insert("rotation_quaternion", frame=f + 1)
-            hips = arm.pose.bones["hips"]
-            hips.location = rest["hips"].transposed() @ P.loc
-            hips.keyframe_insert("location", frame=f + 1)
+            hp = arm.pose.bones["hips"]
+            hp.location = rest_hips @ (delta + V(0, 0, lift))
+            hp.keyframe_insert("location", frame=f + 1)
         track = ad.nla_tracks.new()
         track.name = name
         track.strips.new(name, 1, action)
         ad.action = None
+        stats[name] = {"frames": len(poses), "lift": round(lift, 3)}
     for pb in arm.pose.bones:
         pb.rotation_quaternion = (1, 0, 0, 0)
         pb.location = (0, 0, 0)
+    return speeds, stats
+
+
+def _stance_speed(arm, fks):
+    """Ground speed (m/s) at which the planted foot of a cycle does not
+    slide: how fast the lowest contact point moves backwards."""
+    total, n = 0.0, 0
+    for a, b in zip(fks, fks[1:]):
+        ca, cb = _contacts(arm, a), _contacts(arm, b)
+        i = min(range(len(ca)), key=lambda j: ca[j].z)
+        if ca[i].z - min(p.z for p in ca) < 0.01:
+            total += (cb[i].y - ca[i].y) * FPS
+            n += 1
+    return abs(total / max(n, 1))
 
 
 # ----------------------------------------------------------------------------
@@ -1424,7 +1238,6 @@ def run(root):
         for coll in (bpy.data.meshes, bpy.data.armatures):
             for d in [d for d in coll if d.users == 0]:
                 coll.remove(d)
-        IK_STATS.update(clamped=0, max_reach=0.0)
         col = scn.collection
         arm = build_armature(scn)
         body = build_body(scn, arm)
@@ -1441,13 +1254,13 @@ def run(root):
         hair = build_hair(col, arm, head)
         hands = build_hands(col, arm)
         shoes = build_shoes(col, arm)
-        animate(arm)
+        speeds, clips = animate(arm, root)
         parts = list(pieces.values()) + [head, hair, hands, shirt, shorts, socks, shoes]
 
         out = os.path.join(root, "game", "characters", "kid")
         os.makedirs(out, exist_ok=True)
         info = {
-            "gait_speed": {g: round(gait_speed(g), 3) for g in GAITS},
+            "gait_speed": speeds,
             "body_parts": {p: "body_" + p for p in pieces},
             "garments": {g: {"hides": h} for g, h in OUTFIT.items()},
             "outfit": list(OUTFIT),
@@ -1460,12 +1273,12 @@ def run(root):
             ob.select_set(ob is arm or ob in parts, view_layer=vl)
         bpy.ops.export_scene.gltf(filepath=os.path.join(out, "kid.glb"), export_format="GLB", use_selection=True,
                                   use_active_scene=True, export_yup=True, export_skins=True,
-                                  export_animations=True, export_animation_mode="ACTIONS", export_morph=False,
+                                  export_animations=True, export_animation_mode="NLA_TRACKS", export_morph=False,
                                   export_apply=False)
     finally:
         bpy.context.window.scene = prev
     return {"tris": {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in parts},
-            "gaps": gaps, "ik": dict(IK_STATS), "gait_speed": info["gait_speed"]}
+            "gaps": gaps, "clips": clips, "gait_speed": info["gait_speed"]}
 
 
 def preview(root, frames=None):
@@ -1512,8 +1325,9 @@ def preview(root, frames=None):
         shot("face", 0, 1.33, 0.42, 600, 600, "idle", 1)
         shot("face34", 35, 1.33, 0.42, 600, 600, "idle", 1)
         shot("chest", 20, 1.0, 0.6, 600, 600, "idle", 1)
-        for act, fr in frames or (("walk", 1), ("walk", 6), ("walk", 11), ("run", 1), ("run", 5), ("run", 10),
-                                  ("jump", 10), ("land", 3), ("idle", 30)):
+        for act, fr in frames or (("walk", 1), ("walk", 10), ("run", 1), ("run", 8), ("jump", 8),
+                                  ("double_jump", 10), ("crouch_idle", 1), ("crouch_walk", 10), ("punch_jab", 8),
+                                  ("punch_cross", 10), ("hit", 6), ("land", 3)):
             shot("pose_%s_%02d" % (act, fr), 70, 0.8, 1.9, 500, 760, act, fr)
     finally:
         arm.animation_data.action = None

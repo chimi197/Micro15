@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_38afs"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/bush_a.res" id="2_m210a"]
+
+[node name="bush_a" type="StaticBody3D" unique_id=1618100492]
+script = ExtResource("1_38afs")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=606039825]
+mesh = ExtResource("2_m210a")

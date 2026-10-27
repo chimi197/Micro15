@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_dhgu1"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/lamp.res" id="2_88exv"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_uhlvb"]
+height = 3.0
+radius = 0.15
+
+[node name="lamp" type="StaticBody3D" unique_id=639298918]
+script = ExtResource("1_dhgu1")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=929523925]
+mesh = ExtResource("2_88exv")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=160323953]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("CylinderShape3D_uhlvb")

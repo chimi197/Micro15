@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_12kf8"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/hedge.res" id="2_av47d"]
+[ext_resource type="Shape3D" path="res://assets/meshes/hedge_shape.res" id="3_krjsy"]
+
+[node name="hedge" type="StaticBody3D" unique_id=951729093]
+script = ExtResource("1_12kf8")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1510875812]
+mesh = ExtResource("2_av47d")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=982472662]
+shape = ExtResource("3_krjsy")

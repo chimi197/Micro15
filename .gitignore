@@ -3,3 +3,6 @@ __pycache__/
 *.blend1
 *.blend@
 tools/godot/
+tools/downloads/
+screenshots/
+game/.godot/

@@ -18,8 +18,8 @@ void vertex() {
 void fragment() {
 	float n = texture(noise_tex, world_pos.xz / 40.0).r;
 	vec3 c = tint.rgb;
-	c = mix(c, patch_dark.rgb, step(0.62, n));
-	c = mix(c, patch_light.rgb, step(n, 0.36));
+	c = mix(c, patch_dark.rgb, smoothstep(0.59, 0.65, n));
+	c = mix(c, patch_light.rgb, 1.0 - smoothstep(0.33, 0.39, n));
 	ALBEDO = c;
 	ROUGHNESS = 0.0;
 }

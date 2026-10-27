@@ -8,16 +8,81 @@ use other camera styles later.
 
 ## Art direction
 
-Flat "vector" look with bold dark outlines and saturated colours, in the
-spirit of [the style reference](docs/style_reference.png): cel shading with
-three hard light bands, no textures, inverted-hull outlines.
+Flat "vector" look in the spirit of [the style reference](docs/style_reference.png):
+cel shading with three soft-edged light bands, no textures, a soft sky,
+distance haze and thin ink lines. The lines take a darker, cooler shade of
+the surface they outline instead of black, grow smoothly with the edge
+instead of popping, and fade out with distance (creases after 8–30 m,
+silhouettes after 20–110 m), so they stay calm while moving. SMAA smooths
+the final image.
 
 ## Playing (`game/`, Godot 4.7)
 
-Open `game/` in Godot 4.7 and press F5. WASD to move, mouse to look, Shift to
-run, Space to jump, Esc frees the mouse. Running with `-- --shots` saves
-preview renders to `docs/renders/` and quits; `-- --selftest` walks, runs and
-jumps the player on its own and prints which animation played when.
+Open `game/` in Godot 4.7 and press F5.
+
+| Key | Action |
+| --- | --- |
+| WASD, mouse | move, look |
+| Shift | run |
+| Space | jump; again in the air for a double jump (a flip) |
+| Ctrl or C | crouch (hold) |
+| Left click or F | punch: a jab, then a cross if pressed again quickly |
+| Esc | free the mouse |
+
+Running with `-- --shots` saves preview renders to `docs/renders/` and quits;
+`-- --selftest` walks, runs, crouches, jumps, double-jumps, punches and
+flies the player on its own and prints which animation played when.
+
+## The editor project
+
+Everything is a real scene that opens and can be edited in the Godot editor:
+
+* `levels/micro15/micro15.tscn`: the level, as nodes. `WorldEnvironment`
+  (`style/world_environment.tres`) and `Sun`; `Ground` and `Buildings`
+  (the glTF scenes, cel-shaded by `scripts/styled_model.gd`, in the editor
+  too); `Details` and `Props` (`scripts/scatter.gd`: the repeated windows,
+  balconies, trees and lamps drawn with MultiMeshes, visible in the editor);
+  `Grass`; invisible `Bounds`; `Placed` (things placed with the admin tool,
+  `levels/micro15/placed.tscn`); `InkOutline` (`style/ink_outline.tres`); and
+  the `Player`.
+* `player/player.tscn`: collision capsule, the boy (`characters/kid/kid.glb`)
+  and the camera on a spring arm; `scripts/player.gd` drives it. Inputs are
+  in Project Settings → Input Map.
+* `assets/*.tscn`: one scene per placeable thing, with collision. Drag them
+  into a level in the editor, or place them in game with the admin tool.
+
+### Admin and modding tool (`scripts/admin.gd`)
+
+Only there when the game runs from the Godot editor (never in exported
+builds). F1 opens the admin bar:
+
+| Key | Action |
+| --- | --- |
+| B | build mode: pick an asset from the list, left click places it, wheel or Q/E turns it, Shift+wheel or Z/X scales it, G snaps to a 0.5 m grid, Delete removes the placed thing under the mouse, middle click copies it, Ctrl+Z undoes; hold the right mouse button to look around |
+| N | noclip: fly through everything (Space up, Ctrl down, Shift fast) |
+| T | teleport to the point under the mouse (or the screen centre) |
+| [ ] | movement speed down / up |
+| , . | sun higher / lower |
+| F2 / F3 | ink lines / 3D grass on or off |
+| F12 | screenshot to `screenshots/` |
+
+Every change is saved straight to the level's `placed.tscn`, so placed
+things are part of the level and show up as normal nodes in the editor.
+
+### Placeable assets (`game/assets/`)
+
+![The placeable assets](docs/renders/assets.png)
+
+The map's trees, poplars, bushes, lamps and bench, plus a street kit made by
+`blender/build_assets.py` (`assets/source/street_kit.glb`): painted metal
+fence, knee-high lawn hoop fence, park bench, street bin, the big green
+waste container, the carpet beating frame, swing, slide, concrete chess
+table, bollard, bike rack, concrete planter, box hedge, blue spruce and
+birch. `tools/make_assets.gd` turns every model into a scene:
+
+```
+godot --headless --path game --script res://tools/make_assets.gd
+```
 
 ## Playable character (`game/characters/kid/`)
 
@@ -47,18 +112,23 @@ outfit, the spring (hair) bones and the gait speeds. In the game
 cover, so no skin can poke through clothes and new outfits or accessories
 can be added later without touching the body.
 
-Animations are procedural: `walk` and `run` plant the feet with two-bone IK
-(heel strike, roll, toe-off) with pelvis bob, sway and twist, a
-counter-rotating spine, arm swing with follow-through and a steady head;
-`jump`, `fall` and `land` (with a squash), and a breathing, weight-shifting
-`idle`.
+Animations come from Quaternius' [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html)
+1 and 2 (CC0), animated for game characters, retargeted onto the boy by
+`blender/retarget_ual.py`: each bone follows the source bone's motion from a
+rest pose lined up with the source's, the hips move by the source's motion
+scaled to his leg length, and every clip is set on the ground. Clips: `idle`,
+`walk`, `run` (sprint), `jump`, `fall`, `land`, `double_jump` (a mid-air
+flip), `crouch_idle`, `crouch_walk`, `punch_jab`, `punch_cross` and `hit`.
+`python tools/get_animations.py` downloads the libraries.
 
-`game/scripts/player.gd` plays them: walk and run sped up to match the
-ground speed (feet don't slide) and switched at the same point of the stride,
-leaning into turns and speed changes, hair bouncing on
-`SpringBoneSimulator3D`, jump on take-off, fall after a short time in the air
-and a landing crouch. The character only gets ink on its outer edges
-(materials named `CH_*` write ink mode 0.5, see `ink_outline.gdshader`).
+`scripts/player.gd` plays them: walk, run and crouch-walk sped up to match
+the ground speed (feet don't slide) and switched at the same point of the
+stride, leaning into turns and speed changes, hair bouncing on
+`SpringBoneSimulator3D`, jump, double jump, fall and landing, a crouch that
+lowers the collision capsule (and waits for room to stand up), a jab–cross
+punch combo, and `take_hit()` for a hit reaction. The character only gets
+ink on its outer edges (materials named `CH_*` write ink mode 0.5, see
+`ink_outline.gdshader`).
 
 ```python
 import sys; sys.path.insert(0, r"<repo>/blender")
