@@ -12,6 +12,27 @@ Flat "vector" look with bold dark outlines and saturated colours, in the
 spirit of [the style reference](docs/style_reference.png): cel shading with
 three hard light bands, no textures, inverted-hull outlines.
 
+## Style test (`game/`, Godot 4.7)
+
+![Street view of the style test](docs/renders/style_test_street.png)
+
+A walkable corner of Micro 15 (around Aleea Constelației) that tests the
+hand-drawn look before the whole map is redone:
+
+* `tools/art/make_art.py` draws the art as vector files (`tools/art/svg/`,
+  editable in Inkscape) and PNGs (`game/art/`): trees, bushes, lamp, bench,
+  six facade colours, entrance, roof, grass, asphalt and pavement. Everything
+  has wobbly ink outlines and flat fills.
+* `blender/export_style_test.py` exports the corner from OSM as simple
+  UV-mapped blocks (`game/levels/style_test/corner.glb`) plus tree and prop
+  positions (`props.json`).
+* `game/shaders/toon.gdshader` gives flat lit/shadow shading, and
+  `game/shaders/ink_outline.gdshader` draws ink lines on every silhouette and
+  crease.
+* `game/levels/style_test/style_test.tscn` is the scene. Open `game/` in
+  Godot and press F5: WASD to move, mouse to look, Shift to run, Space to jump.
+  Running it with `-- --shots` saves the preview renders to `docs/renders/`.
+
 ## World (`blender/`)
 
 | File | What it is |
