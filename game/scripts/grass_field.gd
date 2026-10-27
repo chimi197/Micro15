@@ -1,0 +1,134 @@
+## Scatters 3D grass clumps and little flowers over the lawn, using a mask
+## image (white = lawn). The field is split into chunks with a visibility
+## range so only grass near the camera is drawn.
+class_name GrassField
+extends Node3D
+
+@export var mask: Texture2D
+@export var size_m := 350.0              ## metres covered by the mask, centred on the origin
+@export var chunk_m := 16.0
+@export var clumps_per_m2 := 6.0
+@export var flowers_per_m2 := 0.12
+@export var view_distance := 75.0
+@export var max_radius := 170.0          ## no grass outside this circle
+
+var _material: ShaderMaterial
+
+
+func _ready() -> void:
+	_material = ShaderMaterial.new()
+	_material.shader = preload("res://shaders/grass.gdshader")
+	var img := mask.get_image()
+	if img.is_compressed():
+		img.decompress()
+	var clump := _make_clump_mesh()
+	var flower := _make_flower_mesh()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1984
+	var half := size_m / 2.0
+	var n := int(size_m / chunk_m)
+	for cx in n:
+		for cz in n:
+			var x0 := -half + cx * chunk_m
+			var z0 := -half + cz * chunk_m
+			var centre := Vector2(x0 + chunk_m / 2, z0 + chunk_m / 2)
+			if centre.length() > max_radius:
+				continue
+			_add_chunk(img, clump, x0, z0, clumps_per_m2, Vector2(0.75, 1.35), rng)
+			_add_chunk(img, flower, x0, z0, flowers_per_m2, Vector2(0.8, 1.2), rng)
+
+
+func _lawn(img: Image, x: float, z: float) -> bool:
+	var px := int((x + size_m / 2.0) / size_m * img.get_width())
+	var py := int((z + size_m / 2.0) / size_m * img.get_height())
+	if px < 0 or py < 0 or px >= img.get_width() or py >= img.get_height():
+		return false
+	return img.get_pixel(px, py).r > 0.5
+
+
+func _add_chunk(img: Image, mesh: Mesh, x0: float, z0: float, density: float, scale_range: Vector2,
+		rng: RandomNumberGenerator) -> void:
+	var transforms: Array[Transform3D] = []
+	var count := int(chunk_m * chunk_m * density)
+	for i in count:
+		var x := x0 + rng.randf() * chunk_m
+		var z := z0 + rng.randf() * chunk_m
+		if Vector2(x, z).length() > max_radius or not _lawn(img, x, z):
+			continue
+		var s := rng.randf_range(scale_range.x, scale_range.y)
+		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.25), s))
+		transforms.append(Transform3D(basis, Vector3(x, 0.0, z)))
+	if transforms.is_empty():
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.mesh = mesh
+	mm.instance_count = transforms.size()
+	for i in transforms.size():
+		mm.set_instance_transform(i, transforms[i])
+		mm.set_instance_custom_data(i, Color(rng.randf(), 0, 0, 0))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = _material
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.visibility_range_end = view_distance
+	mmi.visibility_range_end_margin = 12.0
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	add_child(mmi)
+
+
+## A clump of 7 curved, tapered blades. UV.y runs 0 (root) to 1 (tip).
+func _make_clump_mesh() -> Mesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var root := Color("#4e8d2f")
+	var tip := Color("#9fd255")
+	for b in 7:
+		var a := rng.randf() * TAU
+		var base := Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.09)
+		var lean_dir := Vector3(cos(a + rng.randf_range(-0.6, 0.6)), 0, sin(a + rng.randf_range(-0.6, 0.6)))
+		var height := rng.randf_range(0.14, 0.3)
+		var width := rng.randf_range(0.035, 0.05)
+		var side := Vector3(-lean_dir.z, 0, lean_dir.x) * width
+		var segs := 3
+		var prev_l := base - side
+		var prev_r := base + side
+		for s in range(1, segs + 1):
+			var t := float(s) / segs
+			var p := base + Vector3(0, height * t, 0) + lean_dir * (t * t) * height * 0.45
+			var w := (1.0 - t) * 0.9 + 0.1 if s < segs else 0.0
+			var l := p - side * w
+			var r := p + side * w
+			var t0 := float(s - 1) / segs
+			for v in [[prev_l, t0], [prev_r, t0], [r, t], [prev_l, t0], [r, t], [l, t]]:
+				st.set_color(root.lerp(tip, v[1]))
+				st.set_uv(Vector2(0, v[1]))
+				st.add_vertex(v[0])
+			prev_l = l
+			prev_r = r
+	return st.commit()
+
+
+## Tiny daisy / buttercup: a stem and a flat six-petal head.
+func _make_flower_mesh() -> Mesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var stem := Color("#4f8f33")
+	var h := 0.32
+	for v in [[Vector3(-0.012, 0, 0), 0.0], [Vector3(0.012, 0, 0), 0.0], [Vector3(0, h, 0), 1.0]]:
+		st.set_color(stem)
+		st.set_uv(Vector2(0, v[1]))
+		st.add_vertex(v[0])
+	var centre := Vector3(0, h, 0)
+	for i in 6:
+		var a0 := TAU * i / 6.0
+		var a1 := TAU * (i + 1) / 6.0
+		var r := 0.07
+		for v in [centre, centre + Vector3(cos(a0), 0.15, sin(a0)) * r, centre + Vector3(cos(a1), 0.15, sin(a1)) * r]:
+			st.set_color(Color("#fdfcf5") if v != centre else Color("#f6c945"))
+			st.set_uv(Vector2(0, 1))
+			st.add_vertex(v)
+	return st.commit()

@@ -1,24 +1,31 @@
-// Flat "vector" shading: a texture or flat colour, two hard light bands
-// (lit / shadow) and sun shadows. No specular, no gradients.
+// Cel shading for 3D models: flat colour (or texture) with three hard light
+// bands (lit / half / shadow) plus sun shadows. No specular.
 shader_type spatial;
 render_mode cull_back, specular_disabled;
 
 uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec4 tint : source_color = vec4(1.0);
 uniform vec2 uv_scale = vec2(1.0);
-// Must match the environment's ambient colour: shadowed areas show
+// Must match the environment's ambient colour: fully shadowed areas show
 // albedo * shadow_tint, lit areas show the plain albedo.
 uniform vec3 shadow_tint : source_color = vec3(0.70, 0.72, 0.90);
+uniform float half_band = 0.35;     // N.L below this is drawn in the half tone
+uniform float half_level = 0.55;
+// 0 hides this surface from the ink outline pass (see ink_outline.gdshader)
+uniform float ink = 1.0;
 
 void fragment() {
 	vec4 tex = texture(albedo_tex, UV * uv_scale);
 	ALBEDO = tex.rgb * tint.rgb;
 	ALPHA = tex.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
+	ROUGHNESS = ink;
 }
 
 void light() {
-	float facing = smoothstep(0.0, 0.04, dot(NORMAL, LIGHT));
-	float unshadowed = smoothstep(0.4, 0.6, ATTENUATION);
-	DIFFUSE_LIGHT += facing * unshadowed * (vec3(1.0) - shadow_tint) * LIGHT_COLOR / PI;
+	float ndl = dot(NORMAL, LIGHT);
+	float facing = smoothstep(0.0, 0.03, ndl);
+	float full = smoothstep(half_band - 0.02, half_band + 0.02, ndl);
+	float lit = facing * mix(half_level, 1.0, full) * smoothstep(0.4, 0.6, ATTENUATION);
+	DIFFUSE_LIGHT += lit * (vec3(1.0) - shadow_tint) * LIGHT_COLOR / PI;
 }

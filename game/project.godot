@@ -7,7 +7,7 @@ config_version=5
 
 config/name="Micro 15"
 config/description="Third-person exploration of a hand-drawn Micro 15, Satu Mare."
-run/main_scene="res://levels/style_test/style_test.tscn"
+run/main_scene="res://levels/corner/corner.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]

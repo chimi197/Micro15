@@ -12,26 +12,39 @@ Flat "vector" look with bold dark outlines and saturated colours, in the
 spirit of [the style reference](docs/style_reference.png): cel shading with
 three hard light bands, no textures, inverted-hull outlines.
 
-## Style test (`game/`, Godot 4.7)
+## Playable 3D corner (`game/`, Godot 4.7)
 
-![Street view of the style test](docs/renders/style_test_street.png)
+![Street in the 3D corner](docs/renders/corner_street.png)
 
-A walkable corner of Micro 15 (around Aleea Constelației) that tests the
-hand-drawn look before the whole map is redone:
+A walkable, fully 3D corner of Micro 15 (around Aleea Constelației and
+Aleea Proiectantului) that sets the look for the whole map:
 
-* `tools/art/make_art.py` draws the art as vector files (`tools/art/svg/`,
-  editable in Inkscape) and PNGs (`game/art/`): trees, bushes, lamp, bench,
-  six facade colours, entrance, roof, grass, asphalt and pavement. Everything
-  has wobbly ink outlines and flat fills.
-* `blender/export_style_test.py` exports the corner from OSM as simple
-  UV-mapped blocks (`game/levels/style_test/corner.glb`) plus tree and prop
-  positions (`props.json`).
-* `game/shaders/toon.gdshader` gives flat lit/shadow shading, and
-  `game/shaders/ink_outline.gdshader` draws ink lines on every silhouette and
-  crease.
-* `game/levels/style_test/style_test.tscn` is the scene. Open `game/` in
-  Godot and press F5: WASD to move, mouse to look, Shift to run, Space to jump.
-  Running it with `-- --shots` saves the preview renders to `docs/renders/`.
+* `blender/build_corner_3d.py` models every block from its OSM footprint:
+  recessed windows with frames, sills and curtains, open and enclosed
+  balconies (some with flower pots or satellite dishes), stairwell entrances
+  with canopies and steps, landing windows, plinths with basement vents,
+  drainpipes, AC units, roof parapets, roof stair houses and antennas. Roads
+  have raised sidewalks and kerbs. It also models stylised 3D trees,
+  poplars, bushes, lamps and benches. Output: `game/levels/corner/*.glb`
+  and `props.json`.
+* `tools/make_grass_mask.py` marks where grass grows (`grass_mask.png`).
+* `game/scripts/grass_field.gd` scatters real 3D grass blades and small
+  flowers on the lawns (MultiMesh chunks, drawn up to 75 m from the camera,
+  swaying in the wind).
+* Shaders in `game/shaders/`: `toon` (three hard light bands),
+  `foliage` (round shading on tree canopies, sway), `grass`, `lawn`, and
+  `ink_outline` (ink lines on silhouettes and creases, fading with distance).
+* `game/levels/corner/corner.tscn` is the main scene. Open `game/` in Godot
+  and press F5: WASD to move, mouse to look, Shift to run, Space to jump. The
+  orange capsule is a placeholder character. Running it with `-- --shots`
+  saves the preview renders in `docs/renders/`.
+
+Rebuild the corner from Blender's Python console:
+
+```python
+import sys; sys.path.insert(0, r"<repo>/blender")
+import build_corner_3d; build_corner_3d.run(r"<repo>")
+```
 
 ## World (`blender/`)
 
