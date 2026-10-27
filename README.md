@@ -15,9 +15,32 @@ three hard light bands, no textures, inverted-hull outlines.
 ## Playing (`game/`, Godot 4.7)
 
 Open `game/` in Godot 4.7 and press F5. WASD to move, mouse to look, Shift to
-run, Space to jump, Esc frees the mouse. The orange capsule is a placeholder
-character. Running with `-- --shots` saves preview renders to `docs/renders/`
-and quits.
+run, Space to jump, Esc frees the mouse. Running with `-- --shots` saves
+preview renders to `docs/renders/` and quits; `-- --selftest` walks, runs and
+jumps the player on its own and prints which animation played when.
+
+## Playable character (`game/characters/kid/`)
+
+![The boy in the game](docs/renders/kid_face.png)
+
+The boy from [the character sheet](docs/character_sheet.png): spiky dark hair,
+blue T-shirt, navy knee-length shorts, white socks and navy sneakers with
+white soles, stripes and laces, about 1.5 m tall. `blender/build_character.py`
+models him low-poly and flat-shaded (to match the sheet), skins him to an
+18-bone humanoid rig (root, hips, spine, chest, neck, head, upper arms,
+forearms, hands, thighs, shins, feet) and keys six animations: `idle`,
+`walk`, `run`, `jump`, `fall` and `land`. Output: `kid.glb`.
+
+`game/scripts/player.gd` plays them: idle when standing, walk and run with
+the cycle sped up to match the ground speed (so feet don't slide), jump on
+take-off, fall after a short time in the air (not on every kerb), and a quick
+landing crouch. Animations cross-fade.
+
+```python
+import sys; sys.path.insert(0, r"<repo>/blender")
+import build_character; build_character.run(r"<repo>")
+build_character.preview(r"<repo>")      # optional: turnaround renders in renders/kid/
+```
 
 ## The whole map (`game/levels/micro15/`)
 

@@ -9,7 +9,9 @@
 ## details and the whole map stays light.
 ##
 ## Run normally to walk around. Run with `-- --shots` to save preview
-## screenshots to ../docs/renders/ and quit.
+## screenshots to ../docs/renders/ and quit, or with `-- --selftest` to
+## drive the player through idle, walk, run and a jump and print what the
+## animations did.
 extends Node3D
 
 const LEVEL := "res://levels/micro15/"
@@ -31,8 +33,21 @@ const PROPS := {
 	"bush_a": 220.0, "bush_b": 220.0, "lamp": 250.0, "bench": 140.0,
 }
 const SOLID_PROPS := {"tree_a": 0.35, "tree_b": 0.4, "tree_c": 0.3, "poplar": 0.3, "lamp": 0.15}
-# name: [camera position, look-at target, player position or null]
+# name: [camera position, look-at target, player position or null,
+#        optional: animation, time in it, player yaw]
 const SHOTS := {
+	"kid_front": [Vector3(130.6, 1.0, -345.0), Vector3(128.5, 0.8, -345.5), Vector3(128.5, 0.1, -345.5),
+			"idle", 0.0, 1.34],
+	"kid_face": [Vector3(129.35, 1.27, -345.3), Vector3(128.5, 1.24, -345.5), Vector3(128.5, 0.1, -345.5),
+			"idle", 0.0, 1.34],
+	"kid_walk": [Vector3(128.5, 0.95, -342.7), Vector3(128.5, 0.8, -345.5), Vector3(128.5, 0.1, -345.5),
+			"walk", 0.2, 1.5708],
+	"kid_run": [Vector3(131.0, 1.1, -343.6), Vector3(128.5, 0.8, -345.5), Vector3(128.5, 0.1, -345.5),
+			"run", 0.13, 1.5708],
+	"kid_jump": [Vector3(131.3, 1.3, -344.4), Vector3(128.5, 1.3, -345.5), Vector3(128.5, 0.7, -345.5),
+			"jump", 0.33, 1.2],
+	"kid_play": [Vector3(125.0, 2.0, -345.3), Vector3(131.0, 1.2, -345.6), Vector3(128.5, 0.1, -345.5),
+			"walk", 0.1, 1.5708],
 	"map_street": [Vector3(124, 2.6, -341.5), Vector3(210, 4.0, -351), Vector3(128.5, 0.15, -345.5)],
 	"map_facade": [Vector3(148, 2.2, -345.5), Vector3(166, 7.0, -356), Vector3(151, 0.15, -347.5)],
 	"map_lawn": [Vector3(102, 1.4, -393), Vector3(85, 3.0, -417), Vector3(100, 0.15, -397)],
@@ -64,6 +79,8 @@ func _ready() -> void:
 	print("Micro 15 loaded in %d ms" % (Time.get_ticks_msec() - t0))
 	if "--shots" in OS.get_cmdline_user_args():
 		_take_shots.call_deferred()
+	elif "--selftest" in OS.get_cmdline_user_args():
+		_self_test.call_deferred()
 
 
 func _load_ground_and_buildings() -> void:
@@ -198,7 +215,41 @@ func _take_shots() -> void:
 		if shot[2] != null:
 			player.position = shot[2]
 			player.body_mesh.rotation.y = atan2(shot[1].x - shot[0].x, shot[1].z - shot[0].z)
+			player.show_pose("idle", 0.0)
+		if shot.size() > 3:
+			player.show_pose(shot[3], shot[4])
+			player.body_mesh.rotation.y = shot[5]
 		for i in 30:
 			await get_tree().process_frame
 		get_viewport().get_texture().get_image().save_png(out_dir.path_join(shot_name + ".png"))
 	get_tree().quit()
+
+
+func _self_test() -> void:
+	var start := player.position
+	var report := func(label: String) -> void:
+		print("%-8s anim=%-5s speed_scale=%.2f on_floor=%s pos=%s" % [label, player.anim.current_animation,
+				player.anim.speed_scale, player.is_on_floor(), player.position.round()])
+	await get_tree().create_timer(1.0).timeout
+	report.call("idle")
+	Input.action_press("move_forward")
+	await get_tree().create_timer(1.0).timeout
+	report.call("walk")
+	Input.action_press("run")
+	await get_tree().create_timer(1.0).timeout
+	report.call("run")
+	Input.action_release("run")
+	Input.action_release("move_forward")
+	await get_tree().create_timer(0.6).timeout
+	Input.action_press("jump")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("jump")
+	for i in 12:
+		await get_tree().create_timer(0.1).timeout
+		report.call("jump+%d" % i)
+	await get_tree().create_timer(0.8).timeout
+	report.call("after")
+	print("moved %.1f m" % start.distance_to(player.position))
+	get_tree().quit()
+
