@@ -13,10 +13,19 @@ uniform float half_band = 0.35;     // N.L below this is drawn in the half tone
 uniform float half_level = 0.55;
 // 0 hides this surface from the ink outline pass (see ink_outline.gdshader)
 uniform float ink = 1.0;
+// MultiMesh details: multiply by the per-instance colour in INSTANCE_CUSTOM
+// (glass tints, curtain and parapet colours, garage doors)
+uniform bool instance_tint = false;
+
+varying vec3 v_tint;
+
+void vertex() {
+	v_tint = instance_tint ? INSTANCE_CUSTOM.rgb : vec3(1.0);
+}
 
 void fragment() {
 	vec4 tex = texture(albedo_tex, UV * uv_scale);
-	ALBEDO = tex.rgb * tint.rgb;
+	ALBEDO = tex.rgb * tint.rgb * v_tint;
 	ALPHA = tex.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ROUGHNESS = ink;

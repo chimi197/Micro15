@@ -1,10 +1,11 @@
-"""Rasterise where 3D grass may grow in the Godot corner level.
+"""Rasterise where 3D grass may grow in a Godot level.
 
 White = lawn, black = buildings, roads, sidewalks, paths, parking, sand.
-Pixel (0, 0) is the north-west corner; 1 px = 0.5 m; the image covers
-SIZE metres centred on build_corner_3d.CENTRE (Godot origin).
+Pixel (0, 0) is the north-west corner; 1 px = 0.5 m; the image covers a
+square of SIZE metres centred on the level's Godot origin.
 
-    python tools/make_grass_mask.py
+    python tools/make_grass_mask.py            # whole map (levels/micro15)
+    python tools/make_grass_mask.py corner     # 3D corner test (levels/corner)
 """
 import json
 import math
@@ -16,8 +17,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAT0, LON0 = 47.7816296, 22.8595870
 KX = math.cos(math.radians(LAT0)) * 111320.0
 KY = 110540.0
-CENTRE = (250.0, 560.0)
-SIZE = 350.0
+LEVELS = {  # level: (centre in OSM metres, size in metres)
+    "micro15": ((140.0, 205.0), 1280.0),      # build_map.MAP_CENTRE
+    "corner": ((250.0, 560.0), 350.0),        # build_corner_3d.CENTRE
+}
 RES = 0.5
 ROADS = {  # highway: corridor width in metres (road + both sidewalks)
     "primary": 19, "primary_link": 11, "secondary": 17, "tertiary": 14, "residential": 11,
@@ -26,7 +29,8 @@ ROADS = {  # highway: corridor width in metres (road + both sidewalks)
 }
 
 
-def main():
+def main(level="micro15"):
+    CENTRE, SIZE = LEVELS[level]
     d = json.load(open(os.path.join(ROOT, "reference", "micro15_osm.json"), encoding="utf-8"))
     nodes = {e["id"]: ((e["lon"] - LON0) * KX, (e["lat"] - LAT0) * KY)
              for e in d["elements"] if e["type"] == "node" and "lat" in e}
@@ -57,11 +61,12 @@ def main():
             r = w / 2
             for x, y in (pts[0], pts[-1]):
                 dr.ellipse((x - r, y - r, x + r, y + r), fill=0)
-    out = os.path.join(ROOT, "game", "levels", "corner", "grass_mask.png")
+    out = os.path.join(ROOT, "game", "levels", level, "grass_mask.png")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     img.save(out)
     print(out, img.size)
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(*sys.argv[1:2])

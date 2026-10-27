@@ -1,65 +1,106 @@
 ## Scatters 3D grass clumps and little flowers over the lawn, using a mask
-## image (white = lawn). The field is split into chunks with a visibility
-## range so only grass near the camera is drawn.
+## image (white = lawn). Grass is built in square chunks around the active
+## camera as it moves and freed again behind it, so a whole neighbourhood
+## costs no more than the patch you can see.
 class_name GrassField
 extends Node3D
 
 @export var mask: Texture2D
-@export var size_m := 350.0              ## metres covered by the mask, centred on the origin
+@export var size_m := 350.0              ## metres covered by the square mask, centred on the origin
 @export var chunk_m := 16.0
 @export var clumps_per_m2 := 6.0
 @export var flowers_per_m2 := 0.12
 @export var view_distance := 75.0
-@export var max_radius := 170.0          ## no grass outside this circle
+@export var max_radius := 0.0            ## no grass outside this circle around the origin (0 = no limit)
+@export var chunks_per_frame := 3        ## build budget while walking; a camera jump builds all at once
 
 var _material: ShaderMaterial
+var _img: Image
+var _clump: Mesh
+var _flower: Mesh
+var _chunks := {}                        # Vector2i -> Array of MultiMeshInstance3D
+var _last := Vector2(INF, INF)
 
 
 func _ready() -> void:
 	_material = ShaderMaterial.new()
 	_material.shader = preload("res://shaders/grass.gdshader")
-	var img := mask.get_image()
-	if img.is_compressed():
-		img.decompress()
-	var clump := _make_clump_mesh()
-	var flower := _make_flower_mesh()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 1984
-	var half := size_m / 2.0
-	var n := int(size_m / chunk_m)
-	for cx in n:
-		for cz in n:
-			var x0 := -half + cx * chunk_m
-			var z0 := -half + cz * chunk_m
-			var centre := Vector2(x0 + chunk_m / 2, z0 + chunk_m / 2)
-			if centre.length() > max_radius:
+	_img = mask.get_image()
+	if _img.is_compressed():
+		_img.decompress()
+	_clump = _make_clump_mesh()
+	_flower = _make_flower_mesh()
+
+
+func _process(_delta: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var p := Vector2(cam.global_position.x, cam.global_position.z)
+	var jumped := p.distance_to(_last) > chunk_m * 4.0
+	_last = p
+	var reach := view_distance + chunk_m
+	var wanted := []
+	for cx in range(floori((p.x - reach) / chunk_m), floori((p.x + reach) / chunk_m) + 1):
+		for cz in range(floori((p.y - reach) / chunk_m), floori((p.y + reach) / chunk_m) + 1):
+			var key := Vector2i(cx, cz)
+			if _chunks.has(key):
 				continue
-			_add_chunk(img, clump, x0, z0, clumps_per_m2, Vector2(0.75, 1.35), rng)
-			_add_chunk(img, flower, x0, z0, flowers_per_m2, Vector2(0.8, 1.2), rng)
+			var d := _centre(key).distance_to(p)
+			if d <= reach:
+				wanted.append([d, key])
+	wanted.sort_custom(func(a, b): return a[0] < b[0])
+	var budget := wanted.size() if jumped else mini(chunks_per_frame, wanted.size())
+	for i in budget:
+		_build(wanted[i][1])
+	for key in _chunks.keys():
+		if _centre(key).distance_to(p) > reach + chunk_m * 2.0:
+			for n: Node in _chunks[key]:
+				n.queue_free()
+			_chunks.erase(key)
 
 
-func _lawn(img: Image, x: float, z: float) -> bool:
-	var px := int((x + size_m / 2.0) / size_m * img.get_width())
-	var py := int((z + size_m / 2.0) / size_m * img.get_height())
-	if px < 0 or py < 0 or px >= img.get_width() or py >= img.get_height():
+func _centre(key: Vector2i) -> Vector2:
+	return Vector2((key.x + 0.5) * chunk_m, (key.y + 0.5) * chunk_m)
+
+
+func _build(key: Vector2i) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(key)
+	var x0 := key.x * chunk_m
+	var z0 := key.y * chunk_m
+	var nodes := []
+	for spec in [[_clump, clumps_per_m2, Vector2(0.75, 1.35)], [_flower, flowers_per_m2, Vector2(0.8, 1.2)]]:
+		var mmi := _make_chunk(spec[0], x0, z0, spec[1], spec[2], rng)
+		if mmi:
+			nodes.append(mmi)
+	_chunks[key] = nodes
+
+
+func _lawn(x: float, z: float) -> bool:
+	if max_radius > 0.0 and Vector2(x, z).length() > max_radius:
 		return false
-	return img.get_pixel(px, py).r > 0.5
+	var px := int((x + size_m / 2.0) / size_m * _img.get_width())
+	var py := int((z + size_m / 2.0) / size_m * _img.get_height())
+	if px < 0 or py < 0 or px >= _img.get_width() or py >= _img.get_height():
+		return false
+	return _img.get_pixel(px, py).r > 0.5
 
 
-func _add_chunk(img: Image, mesh: Mesh, x0: float, z0: float, density: float, scale_range: Vector2,
-		rng: RandomNumberGenerator) -> void:
+func _make_chunk(mesh: Mesh, x0: float, z0: float, density: float, scale_range: Vector2,
+		rng: RandomNumberGenerator) -> MultiMeshInstance3D:
 	var transforms: Array[Transform3D] = []
 	var count := int(chunk_m * chunk_m * density)
 	for i in count:
 		var x := x0 + rng.randf() * chunk_m
 		var z := z0 + rng.randf() * chunk_m
-		if Vector2(x, z).length() > max_radius or not _lawn(img, x, z):
+		if not _lawn(x, z):
 			continue
 		var s := rng.randf_range(scale_range.x, scale_range.y)
 		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.25), s))
 		transforms.append(Transform3D(basis, Vector3(x, 0.0, z)))
 	if transforms.is_empty():
-		return
+		return null
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_custom_data = true
@@ -76,6 +117,7 @@ func _add_chunk(img: Image, mesh: Mesh, x0: float, z0: float, density: float, sc
 	mmi.visibility_range_end_margin = 12.0
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	add_child(mmi)
+	return mmi
 
 
 ## A clump of 7 curved, tapered blades. UV.y runs 0 (root) to 1 (tip).
