@@ -34,6 +34,11 @@ static func add_environment(parent: Node, fog_density := 0.0012, shadow_distance
 	sun.shadow_bias = 0.08
 	sun.shadow_normal_bias = 2.5      # keeps round tree canopies free of shadow acne
 	sun.directional_shadow_max_distance = shadow_distance
+	# a small first split keeps shadows on and around the player crisp
+	sun.directional_shadow_split_1 = 0.03
+	sun.directional_shadow_split_2 = 0.1
+	sun.directional_shadow_split_3 = 0.3
+	sun.directional_shadow_blend_splits = true
 	parent.add_child(sun)
 	return sun
 
@@ -55,7 +60,8 @@ static func add_ink_outline(parent: Node) -> void:
 ## Turns an imported glTF material into the matching cel-shaded one, keyed
 ## by material name so identical colours share one material. With
 ## instance_tint the material also takes a per-instance colour from a
-## MultiMesh's custom data.
+## MultiMesh's custom data. Character materials (CH_*) only get ink on their
+## outer edges, so faces, hair and clothes are not covered in lines.
 func material_for(src: Material, instance_tint := false) -> Material:
 	var mname := src.resource_name if src else "default"
 	var key := mname + ("#tinted" if instance_tint else "")
@@ -78,6 +84,8 @@ func material_for(src: Material, instance_tint := false) -> Material:
 	else:
 		mat.shader = preload("res://shaders/toon.gdshader")
 		mat.set_shader_parameter("instance_tint", instance_tint)
+		if mname.begins_with("CH_"):
+			mat.set_shader_parameter("ink", 0.5)
 	mat.set_shader_parameter("tint", colour)
 	mat.set_shader_parameter("shadow_tint", SHADOW_TINT)
 	_materials[key] = mat

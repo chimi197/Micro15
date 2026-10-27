@@ -11,7 +11,8 @@ uniform vec2 uv_scale = vec2(1.0);
 uniform vec3 shadow_tint : source_color = vec3(0.70, 0.72, 0.90);
 uniform float half_band = 0.35;     // N.L below this is drawn in the half tone
 uniform float half_level = 0.55;
-// 0 hides this surface from the ink outline pass (see ink_outline.gdshader)
+// Ink lines for this surface (see ink_outline.gdshader): 0 none, 0.5 outer
+// edges only, 1 outer edges and creases
 uniform float ink = 1.0;
 // MultiMesh details: multiply by the per-instance colour in INSTANCE_CUSTOM
 // (glass tints, curtain and parapet colours, garage doors)

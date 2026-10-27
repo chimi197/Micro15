@@ -30,10 +30,13 @@ void fragment() {
 	vec2 px = thickness / VIEWPORT_SIZE;
 	float dc = view_depth(SCREEN_UV, INV_PROJECTION_MATRIX);
 	vec3 nc = view_normal(SCREEN_UV);
-	// surfaces that write ROUGHNESS 0 (grass, lawn) get no ink lines
-	if (texture(normal_tex, SCREEN_UV).a < 0.5) {
+	// the ROUGHNESS a surface writes picks its lines: 0 none (grass, lawn),
+	// 0.5 outer edges only (characters), 1 outer edges and creases
+	float mode = texture(normal_tex, SCREEN_UV).a;
+	if (mode < 0.25) {
 		discard;
 	}
+	bool creases = mode > 0.75;
 	float edge = 0.0;
 	vec2 axes[2] = { vec2(px.x, 0.0), vec2(0.0, px.y) };
 	for (int i = 0; i < 2; i++) {
@@ -43,8 +46,8 @@ void fragment() {
 		if (abs(da + db - 2.0 * dc) > depth_threshold * dc) {
 			edge = 1.0;
 		}
-		if (dot(view_normal(SCREEN_UV + axes[i]), nc) < normal_threshold
-				|| dot(view_normal(SCREEN_UV - axes[i]), nc) < normal_threshold) {
+		if (creases && (dot(view_normal(SCREEN_UV + axes[i]), nc) < normal_threshold
+				|| dot(view_normal(SCREEN_UV - axes[i]), nc) < normal_threshold)) {
 			edge = 1.0;
 		}
 	}

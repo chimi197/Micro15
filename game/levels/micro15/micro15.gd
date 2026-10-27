@@ -230,12 +230,27 @@ func _self_test() -> void:
 	var report := func(label: String) -> void:
 		print("%-8s anim=%-5s speed_scale=%.2f on_floor=%s pos=%s" % [label, player.anim.current_animation,
 				player.anim.speed_scale, player.is_on_floor(), player.position.round()])
+	var phase := func() -> float:
+		return player.anim.current_animation_position / player.anim.current_animation_length
+	var shown := []
+	for n: Node3D in player.body_mesh.find_children("body_*", "", true, false):
+		if n.visible:
+			shown.append(n.name)
+	print("outfit %s, body pieces shown %s, hair springs %d" % [player.outfit, shown, player.springs.setting_count])
 	await get_tree().create_timer(1.0).timeout
 	report.call("idle")
 	Input.action_press("move_forward")
 	await get_tree().create_timer(1.0).timeout
 	report.call("walk")
 	Input.action_press("run")
+	var last := 0.0
+	for i in 30:
+		if player.anim.current_animation == "walk":
+			last = phase.call()
+		await get_tree().physics_frame
+		if player.anim.current_animation == "run":
+			print("walk phase %.2f -> run phase %.2f" % [last, phase.call()])
+			break
 	await get_tree().create_timer(1.0).timeout
 	report.call("run")
 	Input.action_release("run")

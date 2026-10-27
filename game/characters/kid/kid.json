@@ -1,0 +1,54 @@
+{
+ "gait_speed": {
+  "walk": 1.256,
+  "run": 3.889
+ },
+ "body_parts": {
+  "base": "body_base",
+  "torso_upper": "body_torso_upper",
+  "torso_lower": "body_torso_lower",
+  "pelvis": "body_pelvis",
+  "upper_arms": "body_upper_arms",
+  "thighs": "body_thighs",
+  "ankles": "body_ankles",
+  "feet": "body_feet"
+ },
+ "garments": {
+  "garment_shirt": {
+   "hides": [
+    "torso_upper",
+    "torso_lower",
+    "upper_arms"
+   ]
+  },
+  "garment_shorts": {
+   "hides": [
+    "torso_lower",
+    "pelvis",
+    "thighs"
+   ]
+  },
+  "garment_socks": {
+   "hides": [
+    "ankles",
+    "feet"
+   ]
+  },
+  "garment_shoes": {
+   "hides": [
+    "feet"
+   ]
+  }
+ },
+ "outfit": [
+  "garment_shirt",
+  "garment_shorts",
+  "garment_socks",
+  "garment_shoes"
+ ],
+ "spring_bones": [
+  "hair_front",
+  "hair_top",
+  "hair_back"
+ ]
+}

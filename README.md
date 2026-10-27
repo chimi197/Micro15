@@ -23,18 +23,42 @@ jumps the player on its own and prints which animation played when.
 
 ![The boy in the game](docs/renders/kid_face.png)
 
-The boy from [the character sheet](docs/character_sheet.png): spiky dark hair,
-blue T-shirt, navy knee-length shorts, white socks and navy sneakers with
-white soles, stripes and laces, about 1.5 m tall. `blender/build_character.py`
-models him low-poly and flat-shaded (to match the sheet), skins him to an
-18-bone humanoid rig (root, hips, spine, chest, neck, head, upper arms,
-forearms, hands, thighs, shins, feet) and keys six animations: `idle`,
-`walk`, `run`, `jump`, `fall` and `land`. Output: `kid.glb`.
+The boy from [the character sheet](docs/character_sheet.png), about 1.5 m
+tall, built by `blender/build_character.py` in layers, like a character with
+an outfit system:
 
-`game/scripts/player.gd` plays them: idle when standing, walk and run with
-the cycle sped up to match the ground speed (so feet don't slide), jump on
-take-off, fall after a short time in the air (not on every kerb), and a quick
-landing crouch. Animations cross-fade.
+- **Base body**: one smooth, watertight mesh (Skin modifier + subdivision)
+  skinned to a 26-bone rig (root, hips, 3-bone spine, neck, head, shoulders,
+  arms, hands, fingers, thighs, shins, feet, toes and three hair bones) with
+  automatic weights. It is exported in pieces (`body_torso_upper`,
+  `body_pelvis`, `body_upper_arms`, `body_thighs`, `body_ankles`,
+  `body_feet`... and `body_base`) whose seams match exactly.
+- **Head, face, hair, hands**: smooth separate meshes; spiky hair made of a
+  cap plus ~120 pointed locks weighted to the hair bones.
+- **Garments** (`garment_shirt`, `garment_shorts`, `garment_socks`,
+  `garment_shoes`): separate meshes, each modelled from its own stick figure,
+  cut open at the hems, given thickness and rolled edges, fitted to stay
+  clear of the body and of the garments underneath, and skinned with weights
+  taken from the body surface under them.
+
+`kid.json` lists the garments, the body pieces each one hides, the default
+outfit, the spring (hair) bones and the gait speeds. In the game
+`player.wear([...])` shows a set of garments and hides the body pieces they
+cover, so no skin can poke through clothes and new outfits or accessories
+can be added later without touching the body.
+
+Animations are procedural: `walk` and `run` plant the feet with two-bone IK
+(heel strike, roll, toe-off) with pelvis bob, sway and twist, a
+counter-rotating spine, arm swing with follow-through and a steady head;
+`jump`, `fall` and `land` (with a squash), and a breathing, weight-shifting
+`idle`.
+
+`game/scripts/player.gd` plays them: walk and run sped up to match the
+ground speed (feet don't slide) and switched at the same point of the stride,
+leaning into turns and speed changes, hair bouncing on
+`SpringBoneSimulator3D`, jump on take-off, fall after a short time in the air
+and a landing crouch. The character only gets ink on its outer edges
+(materials named `CH_*` write ink mode 0.5, see `ink_outline.gdshader`).
 
 ```python
 import sys; sys.path.insert(0, r"<repo>/blender")
