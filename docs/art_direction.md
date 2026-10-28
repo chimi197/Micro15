@@ -72,6 +72,10 @@ versions.
   clipping. Light haze (fog 0.00025, aerial perspective 0.3) separates
   distant blocks. There is no bloom and no colour grading.
 
+| 8:00 | 20:24 | 23:30 |
+| --- | --- | --- |
+| ![Morning](renders/time/time_morning.png) | ![Evening](renders/time/time_evening.png) | ![Night](renders/time/time_night.png) |
+
 ### Materials (`game/scripts/material_library.gd`)
 
 Every glTF material is matched by name to a **family** that sets its

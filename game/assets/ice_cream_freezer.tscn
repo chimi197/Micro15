@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_rv7vk"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/ice_cream_freezer.res" id="2_45vi8"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_01m53"]
+size = Vector3(1.3, 0.9455317, 0.6750001)
+
+[node name="ice_cream_freezer" type="StaticBody3D" unique_id=1926974435]
+script = ExtResource("1_rv7vk")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=857944721]
+mesh = ExtResource("2_45vi8")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=221242467]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.47423416, 0.0075000226)
+shape = SubResource("BoxShape3D_01m53")

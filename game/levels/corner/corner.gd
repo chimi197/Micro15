@@ -2,7 +2,7 @@
 ## 3D trees and bushes, 3D grass, toon shading and ink outlines.
 ##
 ## Run normally to walk around. Run with `-- --shots` to save preview
-## screenshots to ../docs/renders/ and quit.
+## screenshots to ../docs/renders/corner/ and quit.
 extends Node3D
 
 const SOLID_PROPS := {"tree_a": 0.35, "tree_b": 0.4, "tree_c": 0.3, "poplar": 0.3, "lamp": 0.15}
@@ -97,7 +97,7 @@ func _take_shots() -> void:
 	cam.far = 2000
 	add_child(cam)
 	cam.make_current()
-	var out_dir := ProjectSettings.globalize_path("res://").path_join("../docs/renders")
+	var out_dir := ProjectSettings.globalize_path("res://").path_join("../docs/renders/corner")
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	for shot_name in SHOTS:
 		var shot: Array = SHOTS[shot_name]

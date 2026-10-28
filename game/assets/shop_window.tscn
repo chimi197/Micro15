@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_rmckd"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/shop_window.res" id="2_yynom"]
+[ext_resource type="Shape3D" path="res://assets/meshes/shop_window_shape.res" id="3_tlgmr"]
+
+[node name="shop_window" type="StaticBody3D" unique_id=1471709341]
+script = ExtResource("1_rmckd")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=248268539]
+mesh = ExtResource("2_yynom")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=204056617]
+shape = ExtResource("3_tlgmr")

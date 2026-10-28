@@ -1,4 +1,4 @@
-"""Playable character: the boy from docs/character_sheet.png.
+"""Playable character: the boy from reference/character_sheet.png.
 
 Built in layers, like a game character with an outfit system:
 

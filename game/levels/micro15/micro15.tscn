@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://levels/micro15/micro15.gd" id="1_level"]
 [ext_resource type="Environment" path="res://style/world_environment.tres" id="2_env"]
@@ -15,18 +15,13 @@
 [ext_resource type="PackedScene" path="res://levels/micro15/placed.tscn" id="13_placed"]
 [ext_resource type="PackedScene" path="res://player/player.tscn" id="14_player"]
 [ext_resource type="Script" path="res://scripts/sun_cycle.gd" id="15_sun"]
+[ext_resource type="Script" path="res://scripts/boundary.gd" id="16_boundary"]
 
 [sub_resource type="PlaneMesh" id="outer_plane"]
 size = Vector2(4000, 4000)
 
 [sub_resource type="QuadMesh" id="ink_quad"]
 size = Vector2(2, 2)
-
-[sub_resource type="BoxShape3D" id="wall_x"]
-size = Vector3(1280, 60, 2)
-
-[sub_resource type="BoxShape3D" id="wall_z"]
-size = Vector3(2, 60, 1210)
 
 [node name="Micro15" type="Node3D"]
 script = ExtResource("1_level")
@@ -127,23 +122,8 @@ mask = ExtResource("11_mask")
 size_m = 1280.0
 paint_file = "res://levels/micro15/grass_paint.json"
 
-[node name="Bounds" type="StaticBody3D" parent="."]
-
-[node name="North" type="CollisionShape3D" parent="Bounds"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30, -605)
-shape = SubResource("wall_x")
-
-[node name="South" type="CollisionShape3D" parent="Bounds"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30, 605)
-shape = SubResource("wall_x")
-
-[node name="West" type="CollisionShape3D" parent="Bounds"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -640, 30, 0)
-shape = SubResource("wall_z")
-
-[node name="East" type="CollisionShape3D" parent="Bounds"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 640, 30, 0)
-shape = SubResource("wall_z")
+[node name="Boundary" type="Node3D" parent="."]
+script = ExtResource("16_boundary")
 
 [node name="Placed" parent="." instance=ExtResource("13_placed")]
 
@@ -155,4 +135,4 @@ mesh = SubResource("ink_quad")
 surface_material_override/0 = ExtResource("12_ink")
 
 [node name="Player" parent="." instance=ExtResource("14_player")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 128.5, 0.3, -345.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0.3, 220.6)

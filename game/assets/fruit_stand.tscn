@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_s1ru8"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/fruit_stand.res" id="2_fmj5x"]
+[ext_resource type="Shape3D" path="res://assets/meshes/fruit_stand_shape.res" id="3_4v3re"]
+
+[node name="fruit_stand" type="StaticBody3D" unique_id=1905072768]
+script = ExtResource("1_s1ru8")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=740096152]
+mesh = ExtResource("2_fmj5x")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1302354078]
+shape = ExtResource("3_4v3re")

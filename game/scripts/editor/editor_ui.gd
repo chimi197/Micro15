@@ -29,8 +29,13 @@ const ASSET_INFO := {
 	"roof_hut": ["Roof hut", "Building"], "antenna": ["TV antenna", "Building"],
 	"dish": ["Satellite dish", "Building"], "pipe": ["Drain pipe", "Building"],
 	"shopfront": ["Shop front", "Building"], "garage_door": ["Garage door", "Building"],
+	"kiosk": ["Kiosk", "Shops"], "mini_market": ["Mini market", "Shops"],
+	"shop_window": ["Shop window", "Shops"], "drinks_fridge": ["Drinks fridge", "Shops"],
+	"ice_cream_freezer": ["Ice cream freezer", "Shops"], "fruit_stand": ["Fruit stall", "Shops"],
+	"terrace_table": ["Café table", "Shops"], "bus_stop": ["Bus stop", "Street"],
+	"recycling_bins": ["Recycling bins", "Street"], "clothes_dryer": ["Clothes line", "Play"],
 }
-const CATEGORIES := ["All", "Plants", "Street", "Play", "Building"]
+const CATEGORIES := ["All", "Plants", "Street", "Shops", "Play", "Building"]
 const MONTHS := ["January", "February", "March", "April", "May", "June", "July", "August", "September",
 	"October", "November", "December"]
 

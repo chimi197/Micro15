@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_qadkj"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/bus_stop.res" id="2_xl6pj"]
+[ext_resource type="Shape3D" path="res://assets/meshes/bus_stop_shape.res" id="3_rv842"]
+
+[node name="bus_stop" type="StaticBody3D" unique_id=184054649]
+script = ExtResource("1_qadkj")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=528451718]
+mesh = ExtResource("2_xl6pj")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1191881088]
+shape = ExtResource("3_rv842")

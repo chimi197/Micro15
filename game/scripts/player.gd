@@ -1,4 +1,4 @@
-## Third-person player: the boy from docs/character_sheet.png
+## Third-person player: the boy from reference/character_sheet.png
 ## (characters/kid/kid.glb and kid.json, built by blender/build_character.py).
 ## The scene is player/player.tscn: collision capsule, the model and a
 ## camera on a spring arm.

@@ -559,16 +559,22 @@ def make_bench(col):
 
 # ----------------------------------------------------------------------------
 def export(scn, path, objects):
-    prev = bpy.context.window.scene
-    bpy.context.window.scene = scn
     vl = scn.view_layers[0]
     for ob in scn.objects:
         ob.select_set(False, view_layer=vl)
     for ob in objects:
         ob.select_set(True, view_layer=vl)
-    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, use_active_scene=True,
-                              export_apply=True, export_yup=True)
-    bpy.context.window.scene = prev
+    kw = dict(filepath=path, export_format="GLB", use_selection=True, use_active_scene=True,
+              export_apply=True, export_yup=True)
+    win = bpy.context.window
+    if win is None:                     # background Blender / the bpy module: no window
+        with bpy.context.temp_override(scene=scn, view_layer=vl):
+            bpy.ops.export_scene.gltf(**kw)
+        return
+    prev = win.scene
+    win.scene = scn
+    bpy.ops.export_scene.gltf(**kw)
+    win.scene = prev
 
 
 def run(root, stage="all"):

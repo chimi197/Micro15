@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_de5ek"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/mini_market.res" id="2_7d8bl"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hie1g"]
+size = Vector3(6.45, 4.06, 5.2)
+
+[node name="mini_market" type="StaticBody3D" unique_id=420948559]
+script = ExtResource("1_de5ek")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=293876262]
+mesh = ExtResource("2_7d8bl")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1446189307]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 2.03, 0.29999995)
+shape = SubResource("BoxShape3D_hie1g")

@@ -18,6 +18,11 @@ Writes into game/levels/micro15/:
     props.json      {prop: [[x, z, yaw, scale], ...]}
 All positions are in Godot space (x, up, z = -north), centred on MAP_CENTRE.
 
+The map is cut to the playable area in levels/micro15/play_area.json
+(tools/make_play_area.py, from the map editor's corner pins): buildings
+whose middle is inside it, ground clipped to its edge, trees and street
+furniture inside it. scripts/boundary.gd walls it in with shadowed blocks.
+
     import sys; sys.path.insert(0, r"<repo>/blender")
     import build_map; build_map.run(r"<repo>")
 """
@@ -40,6 +45,48 @@ PLINTH = 1.0
 HOUSE_WALLS = ["#f6e7c1", "#f2c59a", "#e8f0d0", "#f5d5d5", "#d6e8f2", "#fbe9a0", "#ffffff"]
 GLASS_TINTS = [(1.0, 1.0, 1.0), (1.12, 1.1, 1.05), (0.85, 0.88, 0.95), (1.0, 1.05, 1.15)]
 CURTAINS = [(0.95, 0.55, 0.51), (0.96, 0.76, 0.42), (0.98, 0.98, 0.96), (0.62, 0.83, 0.91), (0.78, 0.64, 0.88)]
+
+
+def play_area(root):
+    """The playable area as an OSM-metre polygon, or None for the whole map."""
+    path = os.path.join(root, "game", "levels", "micro15", "play_area.json")
+    if not os.path.exists(path):
+        return None
+    poly = json.load(open(path))["polygon"]
+    return [(x + MAP_CENTRE[0], MAP_CENTRE[1] - z) for x, z in poly]
+
+
+def inside(poly, x, y, margin=0.0):
+    """Point (OSM metres) at least margin inside the convex polygon (a
+    negative margin also takes points that far outside)."""
+    if poly is None:
+        return True
+    pairs = list(zip(poly, poly[1:] + poly[:1]))
+    wind = 1.0 if sum(ax * by - bx * ay for (ax, ay), (bx, by) in pairs) > 0 else -1.0
+    for (ax, ay), (bx, by) in pairs:
+        d = ((bx - ax) * (y - ay) - (by - ay) * (x - ax)) / math.hypot(bx - ax, by - ay)
+        if d * wind < margin:
+            return False
+    return True
+
+
+def clip_to(ob, poly):
+    """Cut a mesh object (OSM-metre coordinates) to the polygon."""
+    if poly is None:
+        return
+    cx = sum(p[0] for p in poly) / len(poly)
+    cy = sum(p[1] for p in poly) / len(poly)
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
+        n = Vector((by - ay, -(bx - ax), 0)).normalized()
+        if n.dot(Vector((cx - ax, cy - ay, 0))) > 0:
+            n = -n                              # outward
+        geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+        bmesh.ops.bisect_plane(bm, geom=geom, dist=0.001, plane_co=Vector((ax, ay, 0)), plane_no=n,
+                               clear_outer=True)
+    bm.to_mesh(ob.data)
+    bm.free()
 
 
 class Details:
@@ -463,6 +510,7 @@ def export(scn, path, objects):
 
 def run(root, part="all"):
     data = bw.osm(root)
+    area = play_area(root)
     # earlier prototype scenes own objects with the same names (tree_a, ...)
     for old in ("Corner3D", "Corner3DProps", "StyleTest"):
         sc = bpy.data.scenes.get(old)
@@ -494,7 +542,7 @@ def run(root, part="all"):
                 continue
             cx = sum(p[0] for p in ring) / len(ring)
             cy = sum(p[1] for p in ring) / len(ring)
-            if not bw.in_extent(cx, cy):
+            if not bw.in_extent(cx, cy) or not inside(area, cx, cy):
                 continue
             kind, levels = bw.classify(t, ring)
             rng = random.Random(w["id"])
@@ -520,6 +568,7 @@ def run(root, part="all"):
         finally:
             c3.CENTRE, c3.RADIUS = old_c, old_r
         for ob in scn.collection.all_objects:
+            clip_to(ob, area)
             ob.location = (-MAP_CENTRE[0], -MAP_CENTRE[1], 0)
         export(scn, os.path.join(out, "ground.glb"), list(scn.collection.all_objects))
         res["ground"] = True
@@ -554,6 +603,8 @@ def run(root, part="all"):
                 continue
             if k == "bush_a" and rng.random() < 0.4:
                 k = "bush_b"
+            if not inside(area, ob.location.x, ob.location.y, 0.5):    # after the draw: same bushes as before
+                continue
             props.setdefault(k, []).append([round(ob.location.x - MAP_CENTRE[0], 2),
                                             round(-(ob.location.y - MAP_CENTRE[1]), 2),
                                             round(ob.rotation_euler.z, 3), round(ob.scale.x, 2)])

@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_qky7m"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/terrace_table.res" id="2_ak0k7"]
+[ext_resource type="Shape3D" path="res://assets/meshes/terrace_table_shape.res" id="3_8xlkw"]
+
+[node name="terrace_table" type="StaticBody3D" unique_id=186072413]
+script = ExtResource("1_qky7m")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1964818728]
+mesh = ExtResource("2_ak0k7")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1723711941]
+shape = ExtResource("3_8xlkw")

@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_vb5wc"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/drinks_fridge.res" id="2_4lpr4"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_eqcbe"]
+size = Vector3(0.7, 1.95, 0.79200006)
+
+[node name="drinks_fridge" type="StaticBody3D" unique_id=1219265343]
+script = ExtResource("1_vb5wc")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=772746407]
+mesh = ExtResource("2_4lpr4")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=93249100]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.975, 0.07100001)
+shape = SubResource("BoxShape3D_eqcbe")

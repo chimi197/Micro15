@@ -22,8 +22,8 @@ const TRUNKS := {
 }
 const NO_COLLISION := ["bush_a", "bush_b"]
 const SOLID_DETAILS := ["entrance"]
-## leafy things that are solid as a whole: their bounding box
-const BOXES := ["hedge"]
+## things that are solid as a whole: their bounding box
+const BOXES := ["hedge", "kiosk", "mini_market", "drinks_fridge", "ice_cream_freezer", "recycling_bins"]
 
 
 func _init() -> void:

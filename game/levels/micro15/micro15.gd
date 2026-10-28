@@ -4,50 +4,52 @@
 ## lamps and benches, and 3D grass streamed around the camera.
 ##
 ## Everything is a node of micro15.tscn, so the level opens and can be
-## edited in the Godot editor: Ground and Buildings (glTF scenes, cel-shaded
-## by StyledModel), Details and Props (Scatter nodes that draw the repeated
+## edited in the Godot editor: Ground and Buildings (glTF scenes styled by
+## StyledModel), Details and Props (Scatter nodes that draw the repeated
 ## windows, balconies, trees... with MultiMeshes per 96 m cell), Grass,
-## invisible Bounds, the Player, and Placed: the things placed with the
-## admin tool (scripts/admin.gd), a scene of its own.
+## Boundary (the shadowed blocks around the playable area, which the map is
+## cut to), the Player, and Placed: the things placed with the map editor
+## (scripts/admin.gd), a scene of its own.
 ##
 ## Run normally to walk around. Run with `-- --shots` to save preview
-## screenshots to ../docs/renders/ and quit, or with `-- --selftest` to
+## screenshots to ../docs/renders/<kind>/ and quit, or with `-- --selftest` to
 ## drive the player through every move and print what the animations did.
 extends Node3D
 
 # name: [camera position, look-at target, player position or null,
 #        optional: animation, time in it, player yaw]
 const SHOTS := {
-	"kid_front": [Vector3(130.6, 1.0, -345.0), Vector3(128.5, 0.8, -345.5), Vector3(128.5, 0.1, -345.5),
+	"kid_front": [Vector3(-27.9, 1.0, 221.1), Vector3(-30.0, 0.8, 220.6), Vector3(-30.0, 0.1, 220.6),
 			"idle", 0.0, 1.34],
-	"kid_face": [Vector3(129.35, 1.27, -345.3), Vector3(128.5, 1.24, -345.5), Vector3(128.5, 0.1, -345.5),
+	"kid_face": [Vector3(-29.15, 1.27, 220.8), Vector3(-30.0, 1.24, 220.6), Vector3(-30.0, 0.1, 220.6),
 			"idle", 0.0, 1.34],
-	"kid_walk": [Vector3(128.5, 0.95, -342.7), Vector3(128.5, 0.8, -345.5), Vector3(128.5, 0.1, -345.5),
+	"kid_walk": [Vector3(-30.0, 0.95, 223.4), Vector3(-30.0, 0.8, 220.6), Vector3(-30.0, 0.1, 220.6),
 			"walk", 0.2, 1.5708],
-	"kid_run": [Vector3(131.0, 1.1, -343.6), Vector3(128.5, 0.8, -345.5), Vector3(128.5, 0.1, -345.5),
+	"kid_run": [Vector3(-27.5, 1.1, 222.5), Vector3(-30.0, 0.8, 220.6), Vector3(-30.0, 0.1, 220.6),
 			"run", 0.13, 1.5708],
-	"kid_jump": [Vector3(131.3, 1.3, -344.4), Vector3(128.5, 1.3, -345.5), Vector3(128.5, 0.7, -345.5),
+	"kid_jump": [Vector3(-27.2, 1.3, 221.7), Vector3(-30.0, 1.3, 220.6), Vector3(-30.0, 0.7, 220.6),
 			"jump", 0.33, 1.2],
-	"kid_crouch": [Vector3(130.6, 0.9, -344.6), Vector3(128.5, 0.5, -345.5), Vector3(128.5, 0.1, -345.5),
+	"kid_crouch": [Vector3(-27.9, 0.9, 221.5), Vector3(-30.0, 0.5, 220.6), Vector3(-30.0, 0.1, 220.6),
 			"crouch_walk", 0.6, 1.2],
-	"kid_punch": [Vector3(130.0, 1.2, -343.2), Vector3(128.5, 0.8, -345.5), Vector3(128.5, 0.1, -345.5),
+	"kid_punch": [Vector3(-28.5, 1.2, 222.9), Vector3(-30.0, 0.8, 220.6), Vector3(-30.0, 0.1, 220.6),
 			"punch_cross", 0.33, 1.2],
-	"kid_double_jump": [Vector3(131.3, 1.4, -344.4), Vector3(128.5, 1.3, -345.5), Vector3(128.5, 0.8, -345.5),
+	"kid_double_jump": [Vector3(-27.2, 1.4, 221.7), Vector3(-30.0, 1.3, 220.6), Vector3(-30.0, 0.8, 220.6),
 			"double_jump", 0.3, 1.2],
-	"kid_play": [Vector3(125.0, 2.0, -345.3), Vector3(131.0, 1.2, -345.6), Vector3(128.5, 0.1, -345.5),
+	"kid_play": [Vector3(-33.5, 2.0, 220.8), Vector3(-27.5, 1.2, 220.5), Vector3(-30.0, 0.1, 220.6),
 			"walk", 0.1, 1.5708],
-	"assets": [Vector3(136, 7, -331), Vector3(136, 1, -348), null],
-	"map_street": [Vector3(124, 2.6, -341.5), Vector3(210, 4.0, -351), Vector3(128.5, 0.15, -345.5)],
-	"map_facade": [Vector3(148, 2.2, -345.5), Vector3(166, 7.0, -356), Vector3(151, 0.15, -347.5)],
-	"map_lawn": [Vector3(102, 1.4, -393), Vector3(85, 3.0, -417), Vector3(100, 0.15, -397)],
-	"map_balconies": [Vector3(62, 9, -289), Vector3(105, 9, -330), null],
-	"map_grid": [Vector3(-60, 45, -150), Vector3(-60, 5, -300), null],
-	"map_south": [Vector3(60, 70, 260), Vector3(40, 0, 60), null],
-	"map_overview": [Vector3(220, 170, 40), Vector3(-60, 0, -280), null],
-	"trees_yard": [Vector3(165, 2.2, -342), Vector3(185, 6.0, -322), null],
-	"time_morning": [Vector3(124, 2.6, -341.5), Vector3(210, 8.0, -351), Vector3(128.5, 0.15, -345.5)],
-	"time_evening": [Vector3(124, 2.6, -341.5), Vector3(210, 8.0, -351), Vector3(128.5, 0.15, -345.5)],
-	"time_night": [Vector3(124, 2.6, -341.5), Vector3(210, 8.0, -351), Vector3(128.5, 0.15, -345.5)],
+	"assets": [Vector3(-22.5, 7, 235.1), Vector3(-22.5, 1, 218.1), null],
+	"map_street": [Vector3(-34.5, 2.6, 224.6), Vector3(51.5, 4.0, 215.1), Vector3(-30.0, 0.15, 220.6)],
+	"map_facade": [Vector3(-10.5, 2.2, 220.6), Vector3(7.5, 7.0, 210.1), Vector3(-7.5, 0.15, 218.6)],
+	"map_lawn": [Vector3(-56.5, 1.4, 173.1), Vector3(-73.5, 3.0, 149.1), Vector3(-58.5, 0.15, 169.1)],
+	"map_balconies": [Vector3(-96.5, 9, 277.1), Vector3(-53.5, 9, 236.1), null],
+	"map_grid": [Vector3(60, 60, 330), Vector3(60, 5, 190), null],
+	"map_south": [Vector3(80, 75, 590), Vector3(60, 0, 330), null],
+	"map_overview": [Vector3(330, 200, 640), Vector3(50, 0, 200), null],
+	"map_edge": [Vector3(-132, 4, 222), Vector3(-172, 9, 178), null],
+	"trees_yard": [Vector3(6.5, 2.2, 224.1), Vector3(26.5, 6.0, 244.1), null],
+	"time_morning": [Vector3(-34.5, 2.6, 224.6), Vector3(51.5, 8.0, 215.1), Vector3(-30.0, 0.15, 220.6)],
+	"time_evening": [Vector3(-34.5, 2.6, 224.6), Vector3(51.5, 8.0, 215.1), Vector3(-30.0, 0.15, 220.6)],
+	"time_night": [Vector3(-34.5, 2.6, 224.6), Vector3(51.5, 8.0, 215.1), Vector3(-30.0, 0.15, 220.6)],
 }
 # shots at another time of day (SunCycle); the rest are at its default
 const SHOT_TIMES := {"time_morning": 8.0, "time_evening": 20.4, "time_night": 23.5}
@@ -71,14 +73,12 @@ func _take_shots() -> void:
 	cam.far = 3000
 	add_child(cam)
 	cam.make_current()
-	var out_dir := ProjectSettings.globalize_path("res://").path_join("../docs/renders")
-	DirAccess.make_dir_recursive_absolute(out_dir)
 	var lineup := Node3D.new()
 	add_child(lineup)
 	for shot_name in SHOTS:
 		var shot: Array = SHOTS[shot_name]
 		if shot_name == "assets":
-			_line_up_assets(lineup, Vector3(106, 0.0, -348), 66.0)
+			_line_up_assets(lineup, Vector3(-52.5, 0.0, 218.1), 66.0)
 		else:
 			for n in lineup.get_children():
 				n.queue_free()
@@ -100,40 +100,50 @@ func _take_shots() -> void:
 		for i in 30:
 			await get_tree().process_frame
 		print("%-16s %.1f ms a frame" % [shot_name, (Time.get_ticks_usec() - t0) / 30000.0])
-		get_viewport().get_texture().get_image().save_png(out_dir.path_join(shot_name + ".png"))
+		get_viewport().get_texture().get_image().save_png(render_path(shot_name))
 	get_tree().quit()
 
 
-## Screenshots of the map editor's panels (docs/renders/editor_*.png),
+## Where a preview screenshot goes: docs/renders/<kind>/<name>.png, the kind
+## being the start of its name (kid, time, editor, assets; the rest are map).
+static func render_path(shot_name: String) -> String:
+	var kind := shot_name.get_slice("_", 0)
+	if kind not in ["kid", "time", "editor", "assets"]:
+		kind = "map"
+	var dir := ProjectSettings.globalize_path("res://").path_join("../docs/renders").path_join(kind)
+	DirAccess.make_dir_recursive_absolute(dir)
+	return dir.path_join(shot_name + ".png")
+
+
+## Screenshots of the map editor's panels (docs/renders/editor/*.png),
 ## without saving anything to the level.
 func _editor_shots() -> void:
-	var out_dir := ProjectSettings.globalize_path("res://").path_join("../docs/renders")
 	var frames := func(n: int) -> void:
 		for i in n:
 			await get_tree().process_frame
 	var shot := func(shot_name: String) -> void:
 		await frames.call(8)
-		get_viewport().get_texture().get_image().save_png(out_dir.path_join(shot_name + ".png"))
+		get_viewport().get_texture().get_image().save_png(render_path(shot_name))
 		print("saved ", shot_name)
 	Admin.save_enabled = false
 	$Props.removed_file = ""
 	$Details.removed_file = ""
 	$Buildings.saving = false
-	player.camera.global_position = Vector3(150, 9, -318)
-	player.camera.look_at(Vector3(165, 1, -340))
+	player.camera.global_position = Vector3(-8.5, 9, 248.1)
+	player.camera.look_at(Vector3(6.5, 1, 226.1))
 	Admin.open_editor()
 	var cam := get_viewport().get_camera_3d()
-	cam.global_position = Vector3(150, 9, -318)
-	cam.look_at(Vector3(165, 1, -340))
+	cam.global_position = Vector3(-8.5, 9, 248.1)
+	cam.look_at(Vector3(6.5, 1, 226.1))
 	Admin._camera.copy_view(cam)
 	Admin.set_tool("place")
 	Admin.choose_asset("res://assets/tree_birch.tscn")
 	await frames.call(60)
-	Admin._cursor = Vector3(160, 0.0, -334)
+	Admin._cursor = Vector3(1.5, 0.0, 232.1)
 	await shot.call("editor_place")
 	Admin.set_tool("select")
 	var props: Scatter = $Props
-	var near := props.records_near(Vector3(165, 0, -333), 12.0)
+	var near := props.records_near(Vector3(6.5, 0, 233.1), 12.0)
 	if not near.is_empty():
 		Admin._set_selection([{"kind": "record", "scatter": props, "r": near[0]}])
 	Admin.ui.grid_button.button_pressed = true
@@ -148,7 +158,7 @@ func _editor_shots() -> void:
 	await shot.call("editor_light")
 	Admin.look_preset("Summer noon")
 	Admin.set_tool("pins")
-	Admin._pin_at = Vector3(162, 0, -336)
+	Admin._pin_at = Vector3(3.5, 0, 230.1)
 	Admin.pin_add_confirm("move this tree 2 m left")
 	await shot.call("editor_pins")
 	Admin.set_tool("remove")
@@ -251,6 +261,7 @@ func _self_test() -> void:
 	player.set_noclip(false)
 	print("moved %.1f m" % start.distance_to(player.position))
 	await _test_kerb()
+	await _test_boundary()
 	await _test_tools()
 	get_tree().quit()
 
@@ -264,10 +275,10 @@ func _test_kerb() -> void:
 		var hit := get_world_3d().direct_space_state.intersect_ray(q)
 		return hit.position.y if hit else -1.0
 	# sideways from the street in front of the start until the lawn
-	var x := 128.5
+	var x := -30.0
 	for dz in [1.0, -1.0]:
-		var z := -345.5
-		while absf(z + 345.5) < 30.0 and height.call(x, z) > 0.05:
+		var z := 220.6
+		while absf(z - 220.6) < 30.0 and height.call(x, z) > 0.05:
 			z += dz * 0.05
 		if height.call(x, z) > 0.05 or height.call(x, z) < -0.5:
 			continue
@@ -282,15 +293,51 @@ func _test_kerb() -> void:
 		for i in 150:
 			await get_tree().physics_frame
 			jumped = jumped or player.velocity.y > 1.0
-			if player.global_position.y > y0 + 0.1 and player.is_on_floor() and i > 10:
+			if player.global_position.y > y0 + 0.06 and player.is_on_floor() and i > 10:
 				break
 		Input.action_release("move_forward")
 		await get_tree().create_timer(0.3).timeout
 		print("kerb: lawn at height %.2f, after walking %.2f (on floor %s, jumped %s), %s" % [y0,
 				player.global_position.y, player.is_on_floor(), jumped,
-				"stepped up" if player.global_position.y > y0 + 0.1 and not jumped else "STUCK"])
+				"stepped up" if player.global_position.y > y0 + 0.06 and not jumped else "STUCK"])
 		return
 	print("kerb: no lawn found next to the street")
+
+
+## Runs the player at the edge of the playable area from just inside it:
+## the shadowed blocks must stop him.
+func _test_boundary() -> void:
+	var boundary: Boundary = $Boundary
+	var poly := boundary.polygon
+	print("play area: %d corners, the player starts inside %s" % [poly.size(),
+			boundary.contains(Vector2(player.global_position.x, player.global_position.z))])
+	var a := poly[0]
+	var b := poly[1]
+	var mid := (a + b) * 0.5
+	var centre := Vector2.ZERO
+	for p in poly:
+		centre += p
+	centre /= poly.size()
+	var inward := (centre - mid).normalized()
+	var start := mid + inward * 4.0
+	player.global_position = Vector3(start.x, 2.0, start.y)
+	player.velocity = Vector3.ZERO
+	player.camera_pivot.rotation.y = atan2(inward.x, inward.y)     # facing out
+	await get_tree().create_timer(0.5).timeout
+	Input.action_press("move_forward")
+	Input.action_press("run")
+	for i in 3:
+		await get_tree().create_timer(0.6).timeout
+		Input.action_press("jump")
+		await get_tree().physics_frame
+		Input.action_release("jump")
+	await get_tree().create_timer(0.8).timeout
+	Input.action_release("run")
+	Input.action_release("move_forward")
+	var p := Vector2(player.global_position.x, player.global_position.z)
+	print("boundary: ran and jumped at the edge, still inside %s (%.1f m from where the edge is)" % [
+			boundary.contains(p), Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p)])
+	player.global_position = Vector3(-30.0, 0.3, 220.6)
 
 
 ## The map editor's building blocks, without saving anything to the level.
@@ -373,12 +420,12 @@ func _test_tools() -> void:
 	# a placed bush (no collision): still picked, so it can be removed
 	var placed_bush: Node3D = load("res://assets/bush_a.tscn").instantiate()
 	$Placed.add_child(placed_bush)
-	placed_bush.global_position = Vector3(128.5, 0.13, -345.5)
-	var eye := Vector3(128.5, 6.0, -339.0)
-	var pb: Dictionary = Admin.pick_ray(eye, (Vector3(128.5, 0.5, -345.5) - eye).normalized())
+	placed_bush.global_position = Vector3(-30.0, 0.13, 220.6)
+	var eye := Vector3(-30.0, 6.0, 227.1)
+	var pb: Dictionary = Admin.pick_ray(eye, (Vector3(-30.0, 0.5, 220.6) - eye).normalized())
 	print("pick placed bush on the street: %s" % ("found" if pb.ref.get("node") == placed_bush else "MISSED %s" % pb.ref))
 	placed_bush.free()
-	var spot := Vector2(128.5, -345.5)       # the street in front of the player
+	var spot := Vector2(-30.0, 220.6)       # the street in front of the player
 	var before := grass._lawn(spot.x, spot.y)
 	grass.paint(spot.x, spot.y, 3.0, true)
 	var painted := grass._lawn(spot.x, spot.y)

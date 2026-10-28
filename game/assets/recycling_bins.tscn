@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_jcaro"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/recycling_bins.res" id="2_tjoxr"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dol1k"]
+size = Vector3(2.1000001, 1.0527434, 0.865)
+
+[node name="recycling_bins" type="StaticBody3D" unique_id=2055123497]
+script = ExtResource("1_jcaro")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1760302085]
+mesh = ExtResource("2_tjoxr")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1110997968]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52862823, -0.012499988)
+shape = SubResource("BoxShape3D_dol1k")
