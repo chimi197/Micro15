@@ -1,13 +1,12 @@
-## Shared look of every outdoor level: cel-shaded materials made from
-## imported glTF colours, plus helpers that add the environment (style/) and
-## the ink pass to levels built from code. Runs in the editor too, so the
-## scenes look the same there as in the game.
+## Shared look of every outdoor level (docs/art_direction.md): turns
+## imported glTF materials into the game's materials (MaterialLibrary),
+## plus helpers that add the environment (style/) and the optional ink pass
+## to levels built from code. Runs in the editor too, so the scenes look
+## the same there as in the game.
 @tool
 class_name WorldStyle
 extends RefCounted
 
-const SHADOW_TINT := Color(0.70, 0.72, 0.90)
-const FOLIAGE := ["leaf", "poplar", "bush"]
 const ENVIRONMENT := "res://style/world_environment.tres"
 const INK := "res://style/ink_outline.tres"
 
@@ -37,10 +36,12 @@ static func add_environment(parent: Node, fog_density := 0.0012, shadow_distance
 
 
 static func setup_sun(sun: DirectionalLight3D, shadow_distance := 220.0) -> void:
-	sun.rotation_degrees = Vector3(-48, 35, 0)
-	sun.light_color = Color(1.0, 0.97, 0.9)
+	sun.rotation_degrees = Vector3(-46, 35, 0)
+	sun.light_color = Color(1.0, 0.95, 0.86)
+	sun.light_energy = 1.5
+	sun.light_angular_distance = 0.6
 	sun.shadow_enabled = true
-	sun.shadow_blur = 1.5
+	sun.shadow_blur = 1.0
 	sun.shadow_bias = 0.08
 	sun.shadow_normal_bias = 2.5      # keeps round tree canopies free of shadow acne
 	sun.directional_shadow_max_distance = shadow_distance
@@ -51,7 +52,8 @@ static func setup_sun(sun: DirectionalLight3D, shadow_distance := 220.0) -> void
 	sun.directional_shadow_blend_splits = true
 
 
-## Full-screen ink lines (see ink_outline.gdshader).
+## Full-screen ink lines (see ink_outline.gdshader). Off by default: the
+## art direction draws forms with light; the admin tool can turn them on.
 static func add_ink_outline(parent: Node) -> MeshInstance3D:
 	var quad := MeshInstance3D.new()
 	quad.name = "InkOutline"
@@ -61,49 +63,28 @@ static func add_ink_outline(parent: Node) -> MeshInstance3D:
 	quad.material_override = load(INK)
 	quad.extra_cull_margin = 16384.0
 	quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	quad.visible = false
 	parent.add_child(quad)
 	return quad
 
 
-## Turns an imported glTF material into the matching cel-shaded one, keyed
-## by material name so identical colours share one material. With
-## instance_tint the material also takes a per-instance colour from a
-## MultiMesh's custom data. Character materials (CH_*) only get ink on their
-## outer edges, so faces, hair and clothes are not covered in lines.
+## The game's version of an imported glTF material (see
+## MaterialLibrary), keyed by material name so identical materials share
+## one. With instance_tint the material also takes a per-instance colour
+## from a MultiMesh's custom data.
 func material_for(src: Material, instance_tint := false) -> Material:
 	if src is ShaderMaterial:
 		return src                    # already one of ours
 	var mname := src.resource_name if src else "default"
 	var key := mname + ("#tinted" if instance_tint else "")
-	if _materials.has(key):
-		return _materials[key]
-	var colour := Color.WHITE
-	if src is BaseMaterial3D:
-		colour = (src as BaseMaterial3D).albedo_color
-	var mat := ShaderMaterial.new()
-	var lower := mname.to_lower()
-	if lower.ends_with("lawn"):
-		mat.shader = preload("res://shaders/lawn.gdshader")
-		var noise := NoiseTexture2D.new()
-		noise.seamless = true
-		noise.noise = FastNoiseLite.new()
-		noise.noise.frequency = 0.02
-		mat.set_shader_parameter("noise_tex", noise)
-	elif FOLIAGE.any(func(k): return lower.contains(k)):
-		mat.shader = preload("res://shaders/foliage.gdshader")
-	else:
-		mat.shader = preload("res://shaders/toon.gdshader")
-		mat.set_shader_parameter("instance_tint", instance_tint)
-		if mname.begins_with("CH_"):
-			mat.set_shader_parameter("ink", 0.5)
-	mat.set_shader_parameter("tint", colour)
-	mat.set_shader_parameter("shadow_tint", SHADOW_TINT)
-	_materials[key] = mat
-	return mat
+	if not _materials.has(key):
+		var colour := (src as BaseMaterial3D).albedo_color if src is BaseMaterial3D else Color.WHITE
+		_materials[key] = MaterialLibrary.make(mname, colour, instance_tint)
+	return _materials[key]
 
 
 ## Swaps every surface material of root and the meshes under it for its
-## cel-shaded version. Surface overrides on nodes inside an instanced scene
+## game version. Surface overrides on nodes inside an instanced scene
 ## are not saved with the scene, so this is safe to run in the editor.
 func apply(root: Node) -> void:
 	var meshes := root.find_children("*", "MeshInstance3D", true, false)
@@ -117,7 +98,7 @@ func apply(root: Node) -> void:
 
 
 ## Meshes of a prototype library (details.glb, props.glb) by node name,
-## with cel-shaded materials baked into copies of the meshes so they can be
+## with the game's materials baked into copies of the meshes so they can be
 ## drawn by MultiMeshes. Surfaces whose material is listed in tinted read
 ## a per-instance colour.
 func mesh_library(root: Node, tinted: Array = []) -> Dictionary:

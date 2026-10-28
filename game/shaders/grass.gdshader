@@ -1,10 +1,10 @@
 // 3D grass blades and flowers drawn with MultiMesh. Vertex colours carry the
 // root-to-tip gradient; per-instance custom data varies the shade. Blades
-// sway in the wind and are hidden from the ink outline pass (ROUGHNESS 0).
+// sway in the wind and are lit with the ground's normal, so a lawn reads as
+// one surface with the blades as texture.
 shader_type spatial;
-render_mode cull_disabled, specular_disabled;
+render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 
-uniform vec3 shadow_tint : source_color = vec3(0.70, 0.72, 0.90);
 uniform float wind_strength = 0.18;
 uniform vec2 wind_direction = vec2(1.0, 0.35);
 
@@ -22,12 +22,8 @@ void vertex() {
 }
 
 void fragment() {
+	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
 	// vertex colours are sRGB
-	ALBEDO = pow(COLOR.rgb, vec3(2.2)) * mix(0.85, 1.12, shade);
-	ROUGHNESS = 0.0;
-}
-
-void light() {
-	float lit = smoothstep(0.4, 0.6, ATTENUATION);
-	DIFFUSE_LIGHT += lit * (vec3(1.0) - shadow_tint) * LIGHT_COLOR / PI * max(dot(vec3(0.0, 1.0, 0.0), LIGHT), 0.0) * 1.15;
+	ALBEDO = pow(COLOR.rgb, vec3(2.2)) * mix(0.88, 1.08, shade);
+	ROUGHNESS = 0.95;
 }

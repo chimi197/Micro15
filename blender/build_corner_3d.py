@@ -25,6 +25,7 @@ import random
 from mathutils import Matrix, Vector, noise
 
 import build_world as bw
+import foliage as fol
 
 CENTRE = (250.0, 560.0)
 RADIUS = 115.0
@@ -103,12 +104,29 @@ class Builder:
             mid = (ring[i] + ring[j]) / 2 - c
             self.face([b[i], b[j], t[j], t[i]], m, mid)
 
-    def cylinder(self, base, radius, height, m, segs=8, r_top=None):
+    def cylinder(self, base, radius, height, m, segs=8, r_top=None, smooth=False):
         r = bmesh.ops.create_cone(self.bm, cap_ends=True, segments=segs, radius1=radius,
                                   radius2=radius if r_top is None else r_top, depth=height,
                                   matrix=Matrix.Translation(base + Vector((0, 0, height / 2))))
         for f in {f for v in r["verts"] for f in v.link_faces}:
             f.material_index = m
+            f.smooth = smooth and len(f.verts) == 4      # round sides, flat caps
+
+    def cbox(self, c, d, n, w, depth, z0, z1, m, chamfer=0.015):
+        """Like box, with chamfered edges that catch the light (built in its
+        own bmesh so the bevel never touches the rest)."""
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0)
+        bmesh.ops.scale(bm, vec=Vector((w, depth, z1 - z0)), verts=bm.verts)
+        bmesh.ops.bevel(bm, geom=list(bm.edges), offset=chamfer, segments=1, profile=0.5, affect="EDGES")
+        d = Vector((d.x, d.y, 0)).normalized()
+        rot = Matrix.Rotation(math.atan2(d.y, d.x), 4, "Z")
+        bmesh.ops.transform(bm, matrix=Matrix.Translation(Vector((c.x, c.y, (z0 + z1) / 2))) @ rot, verts=bm.verts)
+        vmap = {v: self.bm.verts.new(v.co) for v in bm.verts}
+        for f in bm.faces:
+            nf = self.bm.faces.new([vmap[v] for v in f.verts])
+            nf.material_index = m
+        bm.free()
 
     def finish(self, name, col):
         bmesh.ops.remove_doubles(self.bm, verts=self.bm.verts, dist=0.001)
@@ -481,86 +499,78 @@ def build_ground(data, col):
 # ----------------------------------------------------------------------------
 # Props: stylised 3D trees, bushes, lamps, benches
 # ----------------------------------------------------------------------------
-def blob_canopy(B, centre, blobs, rng, m, lump=0.22, freq=0.9):
-    """Union of displaced icospheres; normals bent outwards from the centre
-    give soft, round toon shading like a painted tree."""
-    vstart = len(B.bm.verts)
-    for off, r in blobs:
-        res = bmesh.ops.create_icosphere(B.bm, subdivisions=3, radius=r,
-                                         matrix=Matrix.Translation(centre + off))
-        seed = rng.uniform(0, 100)
-        for v in res["verts"]:
-            dirn = (v.co - (centre + off)).normalized()
-            disp = noise.noise(v.co * freq + Vector((seed, seed, seed))) * lump * r
-            v.co += dirn * disp
-        for f in {f for v in res["verts"] for f in v.link_faces}:
-            f.material_index = m
-    return vstart
-
-
 def bent_normals(ob, centre, leaf_index, strength=0.85, axis_scale=1.0):
-    """Point foliage normals away from the canopy centre (z scaled by
-    axis_scale for tall shapes) so toon shading reads as one soft volume."""
-    me = ob.data
-    leafy = set()
-    for p in me.polygons:
-        if p.material_index == leaf_index:
-            leafy.update(p.vertices)
-    normals = []
-    for v in me.vertices:
-        if v.index in leafy:
-            off = v.co - centre
-            off.z *= axis_scale
-            normals.append((off.normalized() * strength + v.normal * (1 - strength)).normalized())
-        else:
-            normals.append(v.normal.copy())
-    me.normals_split_custom_set_from_vertices(normals)
+    """Point foliage normals away from the canopy centre (see foliage.py)."""
+    fol.bend_normals(ob, centre, {leaf_index}, strength, axis_scale)
 
 
 def trunk(B, m, height, rng, branches=3, r0=0.28):
-    B.cylinder(Vector((0, 0, 0)), r0, height, m, 7, r_top=r0 * 0.6)
+    """Tapered, slightly leaning trunk with forking branches. Returns the
+    branch tips (and the top of the trunk) for the leaf clumps."""
+    lean = Vector((rng.uniform(-0.15, 0.15), rng.uniform(-0.15, 0.15), 0))
+    top = Vector((0, 0, height)) + lean
+    _limb(B, Vector((0, 0, 0)), top, r0, r0 * 0.55, m, 9)
+    B.cylinder(Vector((0, 0, 0)), r0 * 1.35, 0.25, m, 9, r_top=r0, smooth=True)   # root flare
+    tips = [top]
+    a0 = rng.uniform(0, math.tau)
     for k in range(branches):
-        a = rng.uniform(0, math.tau)
-        tilt = rng.uniform(0.5, 0.9)
-        L = rng.uniform(1.2, 2.0)
-        z = height * rng.uniform(0.6, 0.9)
+        a = a0 + math.tau * k / max(branches, 1) + rng.uniform(-0.4, 0.4)
+        tilt = rng.uniform(0.6, 0.95)
+        L = rng.uniform(1.3, 2.0)
+        z = height * rng.uniform(0.6, 0.85)
         dirv = Vector((math.cos(a) * math.sin(tilt), math.sin(a) * math.sin(tilt), math.cos(tilt)))
-        mtx = Matrix.Translation(Vector((0, 0, z)) + dirv * L / 2) @ dirv.to_track_quat("Z", "Y").to_matrix().to_4x4()
-        r = bmesh.ops.create_cone(B.bm, cap_ends=True, segments=6, radius1=r0 * 0.45, radius2=r0 * 0.2, depth=L,
-                                  matrix=mtx)
-        for f in {f for v in r["verts"] for f in v.link_faces}:
-            f.material_index = m
+        base = Vector((0, 0, z)) + lean * (z / height)
+        _limb(B, base, base + dirv * L, r0 * 0.45, r0 * 0.2, m, 7)
+        tips.append(base + dirv * L)
+    return tips
+
+
+def _limb(B, p0, p1, r0, r1, m, segs):
+    d = p1 - p0
+    mtx = Matrix.Translation((p0 + p1) / 2) @ d.to_track_quat("Z", "Y").to_matrix().to_4x4()
+    r = bmesh.ops.create_cone(B.bm, cap_ends=True, segments=segs, radius1=r0, radius2=r1, depth=d.length,
+                              matrix=mtx)
+    for f in {f for v in r["verts"] for f in v.link_faces}:
+        f.material_index = m
+        f.smooth = len(f.verts) == 4
 
 
 def make_tree(name, col, seed, leaf, height=3.2, spread=2.4, nblobs=7):
+    """Broadleaf tree: a forked trunk carrying a ragged crown of leaf
+    clumps, lighter on top and darker underneath (foliage shader)."""
     rng = random.Random(seed)
     B = Builder()
-    trunk(B, B.mi("bark"), height + 0.6, rng)
-    centre = Vector((0, 0, height + spread * 0.9))
-    blobs = [(Vector((0, 0, 0)), spread * 1.05)]
-    for k in range(nblobs):
-        a = math.tau * k / nblobs + rng.uniform(-0.3, 0.3)
-        rr = spread * rng.uniform(0.55, 0.8)
-        blobs.append((Vector((math.cos(a) * rr, math.sin(a) * rr, rng.uniform(-0.6, 0.9))), spread * rng.uniform(0.55, 0.75)))
-    blobs.append((Vector((0, 0, spread * 0.75)), spread * 0.7))
-    blob_canopy(B, centre, blobs, rng, B.mi(leaf))
+    tips = trunk(B, B.mi("bark"), height + 0.6, rng, branches=min(nblobs // 2, 4))
     li = B.mi(leaf)
+    centre = Vector((0, 0, height + spread * 0.9))
+    clumps = [(centre + Vector((0, 0, spread * 0.25)), spread * 0.8)]
+    for t in tips[1:]:
+        clumps.append((t + Vector((0, 0, spread * 0.15)), spread * rng.uniform(0.5, 0.62)))
+    for k in range(nblobs - len(tips) + 1):
+        a = math.tau * k / max(nblobs - len(tips) + 1, 1) + rng.uniform(-0.5, 0.5)
+        rr = spread * rng.uniform(0.55, 0.8)
+        clumps.append((centre + Vector((math.cos(a) * rr, math.sin(a) * rr, rng.uniform(-0.5, 0.8))),
+                       spread * rng.uniform(0.45, 0.6)))
+    clumps.append((centre + Vector((rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), spread * 0.8)), spread * 0.5))
+    for c, r in clumps:
+        fol.clump(B.bm, c, (r, r, r * 0.9), rng, li, leaves=int(30 + 10 * r), leaf_size=(0.4, 0.62))
     ob = B.finish(name, col)
     bent_normals(ob, centre, li)
     return ob
 
 
 def make_poplar(name, col, seed):
+    """Lombardy poplar: a tall, narrow column of upward-pointing clumps."""
     rng = random.Random(seed)
     B = Builder()
-    trunk(B, B.mi("bark"), 2.5, rng, branches=0, r0=0.25)
-    blobs = []
-    for k in range(7):
-        z = 1.8 + k * 1.7
-        r = 1.5 * math.sin(math.pi * (k + 0.8) / 7.6) + 0.35
-        blobs.append((Vector((rng.uniform(-0.2, 0.2), rng.uniform(-0.2, 0.2), z)), r))
-    blob_canopy(B, Vector((0, 0, 1.0)), blobs, rng, B.mi("poplar"), lump=0.18, freq=1.3)
+    trunk(B, B.mi("bark"), 2.8, rng, branches=0, r0=0.25)
     li = B.mi("poplar")
+    for k in range(8):
+        z = 2.4 + k * 1.45
+        r = 1.35 * math.sin(math.pi * (k + 0.9) / 8.8) + 0.3
+        c = Vector((rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), z))
+        fol.clump(B.bm, c, (r, r, r * 1.25), rng, li, leaves=int(26 + 12 * r), leaf_size=(0.32, 0.48),
+                  up_bias=0.6, droop=0.1)
     ob = B.finish(name, col)
     bent_normals(ob, Vector((0, 0, 7.5)), li, axis_scale=0.25)
     return ob
@@ -569,19 +579,19 @@ def make_poplar(name, col, seed):
 def make_bush(name, col, seed, flowers=False):
     rng = random.Random(seed)
     B = Builder()
-    blobs = [(Vector((rng.uniform(-0.9, 0.9), rng.uniform(-0.5, 0.5), rng.uniform(0.0, 0.25))), rng.uniform(0.55, 0.85))
-             for _ in range(4)]
-    centre = Vector((0, 0, 0.45))
     li = B.mi("bush")
-    blob_canopy(B, centre, blobs, rng, li, lump=0.2, freq=1.6)
-    for v in B.bm.verts:              # flat bottom on the ground
-        v.co.z = max(v.co.z, 0.0)
+    centre = Vector((0, 0, 0.45))
+    for _ in range(4):
+        c = Vector((rng.uniform(-0.8, 0.8), rng.uniform(-0.45, 0.45), rng.uniform(0.4, 0.65)))
+        r = rng.uniform(0.55, 0.8)
+        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, leaves=int(22 + 14 * r), leaf_size=(0.26, 0.4),
+                  min_z=0.0)
     if flowers:
         fm = B.mi("flower")
-        for _ in range(10):
+        for _ in range(12):
             a = rng.uniform(0, math.tau)
-            p = centre + Vector((math.cos(a) * 1.0, math.sin(a) * 0.65, rng.uniform(0.15, 0.6)))
-            r = bmesh.ops.create_icosphere(B.bm, subdivisions=1, radius=0.1, matrix=Matrix.Translation(p))
+            p = centre + Vector((math.cos(a) * 1.0, math.sin(a) * 0.62, rng.uniform(0.2, 0.65)))
+            r = bmesh.ops.create_icosphere(B.bm, subdivisions=1, radius=0.09, matrix=Matrix.Translation(p))
             for f in {f for v in r["verts"] for f in v.link_faces}:
                 f.material_index = fm
     ob = B.finish(name, col)
@@ -590,27 +600,34 @@ def make_bush(name, col, seed, flowers=False):
 
 
 def make_lamp(col):
+    """Street lamp: chamfered concrete-grey base, smooth tapered pole, a
+    chunky arm and a box head with a glowing diffuser underneath."""
     B = Builder()
     m, g = B.mi("metal"), B.mi("lamp_glass")
-    B.cylinder(Vector((0, 0, 0)), 0.16, 0.6, m, 8)
-    B.cylinder(Vector((0, 0, 0.6)), 0.09, 6.4, m, 8, r_top=0.06)
-    B.box(Vector((0.7, 0, 0)), Vector((1, 0, 0)), Vector((0, 1, 0)), 1.5, 0.08, 6.9, 6.98, m)
-    B.box(Vector((1.35, 0, 0)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.7, 0.32, 6.82, 7.02, m)
-    B.box(Vector((1.35, 0, 0)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.6, 0.26, 6.74, 6.82, g)
+    X, Y = Vector((1, 0, 0)), Vector((0, 1, 0))
+    B.cbox(Vector((0, 0, 0)), X, Y, 0.34, 0.34, 0.0, 0.55, m, 0.03)
+    B.cylinder(Vector((0, 0, 0.55)), 0.1, 6.3, m, 12, r_top=0.065, smooth=True)
+    B.cbox(Vector((0.62, 0, 0)), X, Y, 1.3, 0.1, 6.8, 6.92, m, 0.02)
+    B.cbox(Vector((1.35, 0, 0)), X, Y, 0.78, 0.36, 6.74, 7.0, m, 0.035)
+    B.cbox(Vector((1.35, 0, 0)), X, Y, 0.64, 0.26, 6.68, 6.75, g, 0.015)
     return B.finish("lamp", col)
 
 
 def make_bench(col):
+    """Park bench with chunky painted metal sides and thick, chamfered
+    wooden slats (one degree of exaggeration, see docs/art_direction.md)."""
     B = Builder()
-    m, wd = B.mi("metal"), B.mi("wood")
+    m, wd = B.mi("fence_green", "#3f6e4a"), B.mi("wood")
     X, Y = Vector((1, 0, 0)), Vector((0, 1, 0))
     for k in range(3):
-        B.box(Vector((0, -0.18 + k * 0.17, 0)), X, Y, 1.8, 0.13, 0.44, 0.48, wd)
+        B.cbox(Vector((0, -0.2 + k * 0.165, 0)), X, Y, 1.85, 0.14, 0.42, 0.48, wd, 0.012)
     for k in range(2):
-        B.box(Vector((0, 0.27, 0)), X, Y, 1.8, 0.04, 0.6 + k * 0.17, 0.72 + k * 0.17, wd)
-    for sx in (-0.75, 0.75):
-        B.box(Vector((sx, 0, 0)), X, Y, 0.06, 0.5, 0.0, 0.44, m)
-        B.box(Vector((sx, 0.27, 0)), X, Y, 0.06, 0.05, 0.44, 0.95, m)
+        B.cbox(Vector((0, 0.29, 0)), X, Y, 1.85, 0.055, 0.6 + k * 0.18, 0.73 + k * 0.18, wd, 0.012)
+    for sx in (-0.74, 0.74):
+        B.cbox(Vector((sx, -0.2, 0)), X, Y, 0.08, 0.08, 0.0, 0.42, m, 0.012)       # front leg
+        B.cbox(Vector((sx, 0.22, 0)), X, Y, 0.08, 0.08, 0.0, 0.42, m, 0.012)       # back leg
+        B.cbox(Vector((sx, 0.01, 0)), X, Y, 0.08, 0.56, 0.36, 0.42, m, 0.012)      # seat rail
+        B.cbox(Vector((sx, 0.29, 0)), X, Y, 0.08, 0.08, 0.42, 0.98, m, 0.012)      # back post
     return B.finish("bench", col)
 
 

@@ -6,6 +6,10 @@
 // size of the depth or angle jump (so it does not pop on and off as the
 // camera moves), it is about one pixel wide at 1080p, and it fades out with
 // distance: creases first, then silhouettes.
+//
+// Since the art direction pass (docs/art_direction.md) the game draws its
+// forms with light and this pass is off; the admin tool's F2 still shows
+// it, as silhouettes only, for comparison.
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_disabled, fog_disabled, shadows_disabled;
 
@@ -18,6 +22,7 @@ uniform float ink_mix = 0.35;
 uniform float strength = 0.85;
 uniform float thickness = 1.0;           // in pixels at 1080p, each side
 uniform float depth_threshold = 0.03;    // relative depth jump where a line starts
+uniform bool creases = false;           // also draw lines at sharp creases
 uniform float normal_threshold = 0.55;   // cosine below which a crease starts
 uniform float crease_fade_start = 8.0;   // metres
 uniform float crease_fade_end = 30.0;
@@ -42,13 +47,10 @@ void fragment() {
 	vec2 px = thickness * (VIEWPORT_SIZE.y / 1080.0) / VIEWPORT_SIZE;
 	px = max(px, 1.0 / VIEWPORT_SIZE);
 	float dc = view_depth(SCREEN_UV, INV_PROJECTION_MATRIX);
-	// the ROUGHNESS a surface writes picks its lines: 0 none (grass, lawn),
-	// 0.5 outer edges only (characters), 1 outer edges and creases
-	float mode = texture(normal_tex, SCREEN_UV).a;
-	if (mode < 0.25 || dc > fade_end) {
+	if (dc > fade_end) {
 		discard;
 	}
-	float crease_fade = mode > 0.75 ? 1.0 - smoothstep(crease_fade_start, crease_fade_end, dc) : 0.0;
+	float crease_fade = creases ? 1.0 - smoothstep(crease_fade_start, crease_fade_end, dc) : 0.0;
 	vec3 nc = view_normal(SCREEN_UV);
 	float edge = 0.0;
 	// the line takes its colour from the nearest surface around it

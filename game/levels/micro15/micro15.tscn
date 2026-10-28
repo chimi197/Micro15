@@ -35,11 +35,13 @@ environment = ExtResource("2_env")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.819152, 0, -0.573576, -0.42625, 0.669131, -0.608749, 0.383798, 0.743145, 0.54812, 0, 0, 0)
-light_color = Color(1, 0.97, 0.9, 1)
+light_color = Color(1, 0.95, 0.86, 1)
+light_energy = 1.5
+light_angular_distance = 0.6
 shadow_enabled = true
 shadow_bias = 0.08
 shadow_normal_bias = 2.5
-shadow_blur = 1.5
+shadow_blur = 1.0
 directional_shadow_split_1 = 0.03
 directional_shadow_split_2 = 0.1
 directional_shadow_split_3 = 0.3
@@ -133,6 +135,7 @@ shape = SubResource("wall_z")
 [node name="Placed" parent="." instance=ExtResource("13_placed")]
 
 [node name="InkOutline" type="MeshInstance3D" parent="."]
+visible = false
 cast_shadow = 0
 extra_cull_margin = 16384.0
 mesh = SubResource("ink_quad")

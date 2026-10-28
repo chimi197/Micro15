@@ -1,5 +1,5 @@
 ## Turns every prop model into a placeable scene in res://assets/: the mesh
-## (saved to assets/meshes/), cel-shaded through StyledModel, with collision.
+## (saved to assets/meshes/), styled through StyledModel, with collision.
 ## The admin placement tool lists these scenes, and they can be dragged
 ## into any level in the editor.
 ##
@@ -13,6 +13,8 @@ const TRUNKS := {
 	"tree_birch": 0.25, "bollard": 0.09, "trash_bin": 0.22,
 }
 const NO_COLLISION := ["bush_a", "bush_b"]
+## leafy things that are solid as a whole: their bounding box
+const BOXES := ["hedge"]
 
 
 func _init() -> void:
@@ -48,6 +50,12 @@ func _make(asset: String, mesh: Mesh) -> String:
 			cyl.height = 3.0
 			shape.shape = cyl
 			shape.position.y = 1.5
+		elif asset in BOXES:
+			var aabb := mesh.get_aabb()
+			var box := BoxShape3D.new()
+			box.size = aabb.size
+			shape.shape = box
+			shape.position = aabb.get_center()
 		else:
 			var shape_path := "res://assets/meshes/%s_shape.res" % asset
 			ResourceSaver.save(mesh.create_trimesh_shape(), shape_path)

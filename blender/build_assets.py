@@ -21,6 +21,8 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+import foliage as fol
+
 COLOURS = {
     "fence_green": "#3f7a4a", "metal_dark": "#3a3f47", "metal_grey": "#8e969c", "wood": "#b77a45",
     "concrete": "#c9c4b8", "concrete_dark": "#a8a397", "bin_green": "#3d8a52", "container": "#2f6e45",
@@ -62,6 +64,7 @@ class Kit:
     def __init__(self):
         self.bm = bmesh.new()
         self.mats = []
+        self.bends = []          # (centre, material, axis_scale) for foliage normals
 
     def mi(self, name):
         m = material(name)
@@ -96,8 +99,9 @@ class Kit:
             nf.smooth = f.smooth
         piece.free()
 
-    def block(self, c, size, mat, rot_z=0.0, bevel=0.0, smooth=False):
-        """Box centred on c, optionally with rounded edges."""
+    def block(self, c, size, mat, rot_z=0.0, bevel=0.0, smooth=False, segments=2):
+        """Box centred on c, optionally with rounded (or, with segments=1,
+        chamfered) edges."""
         self.begin()
         bmesh.ops.create_cube(self.bm, size=1.0)
         vs = list(self.new_verts())
@@ -105,7 +109,7 @@ class Kit:
         if bevel > 0:
             self.bm.edges.ensure_lookup_table()
             edges = list({e for v in vs for e in v.link_edges})
-            bmesh.ops.bevel(self.bm, geom=edges, offset=bevel, segments=2, profile=0.5, affect="EDGES")
+            bmesh.ops.bevel(self.bm, geom=edges, offset=bevel, segments=segments, profile=0.5, affect="EDGES")
         bmesh.ops.transform(self.bm, matrix=Matrix.Translation(V(c)) @ Matrix.Rotation(rot_z, 4, "Z"),
                             verts=list(self.new_verts()))
         self._tag(self.new_faces(), mat, smooth)
@@ -159,6 +163,14 @@ class Kit:
         self._tag(self.new_faces(), mat, True)
         self.end()
 
+    def leaves(self, c, radii, mat, seed, bend_centre=None, axis_scale=1.0, **kw):
+        """A clump of leaf cards (foliage.clump); its normals are bent away
+        from bend_centre (default: the clump's own centre)."""
+        self.begin()
+        fol.clump(self.bm, V(c), radii, random.Random(seed), self.mi(mat), **kw)
+        self.end()
+        self.bends.append((V(bend_centre or c), mat, axis_scale))
+
     def to_object(self, name, col):
         bmesh.ops.remove_doubles(self.bm, verts=self.bm.verts, dist=1e-5)
         me = bpy.data.meshes.new(name)
@@ -168,6 +180,8 @@ class Kit:
             me.materials.append(m)
         ob = bpy.data.objects.new(name, me)
         col.objects.link(ob)
+        for centre, mat, axis_scale in self.bends[:1]:     # one bend per asset: its clumps share a centre
+            fol.bend_normals(ob, centre, {self.mats.index(material(mat))}, axis_scale=axis_scale)
         return ob
 
 
@@ -207,18 +221,20 @@ def fence_low(k):
 
 
 def bench_wood(k):
-    """Park bench: cast iron sides, wooden seat and back slats."""
+    """Park bench: chunky cast iron sides, thick chamfered wooden slats."""
     L = 1.8
     for x in (-L / 2 + 0.12, L / 2 - 0.12):
-        k.pipe([(x, -0.22, 0.0), (x, -0.2, 0.43), (x, 0.2, 0.43), (x, 0.22, 0.0)], 0.022, "metal_dark", seg=8)
-        k.pipe([(x, 0.18, 0.43), (x, 0.26, 0.85)], 0.02, "metal_dark", seg=8)
-        k.pipe([(x, -0.2, 0.43), (x, -0.18, 0.62), (x, 0.05, 0.66), (x, 0.2, 0.62)], 0.016, "metal_dark", seg=8)
+        k.pipe([(x, -0.22, 0.0), (x, -0.2, 0.43), (x, 0.2, 0.43), (x, 0.22, 0.0)], 0.03, "metal_dark", seg=10)
+        k.pipe([(x, 0.18, 0.43), (x, 0.26, 0.85)], 0.028, "metal_dark", seg=10)
+        k.pipe([(x, -0.2, 0.43), (x, -0.18, 0.62), (x, 0.05, 0.66), (x, 0.2, 0.62)], 0.024, "metal_dark", seg=10)
+        for y in (-0.22, 0.22):
+            k.block((x, y, 0.015), (0.09, 0.09, 0.03), "metal_dark", bevel=0.01, segments=1)   # feet
     for i in range(4):
-        k.block((0, -0.18 + i * 0.12, 0.45), (L, 0.1, 0.035), "wood", bevel=0.008)
+        k.block((0, -0.18 + i * 0.12, 0.46), (L, 0.105, 0.05), "wood", bevel=0.012, segments=1)
     for i in range(3):
         t = 0.5 + i * 0.12
-        k.block((0, 0.19 + 0.08 * (t - 0.43) / 0.42 * 2.0 - 0.02, t), (L, 0.03, 0.09), "wood",
-                bevel=0.008)
+        k.block((0, 0.19 + 0.08 * (t - 0.43) / 0.42 * 2.0 - 0.02, t), (L, 0.045, 0.1), "wood",
+                bevel=0.012, segments=1)
 
 
 def trash_bin(k):
@@ -348,50 +364,50 @@ def planter(k):
     rnd = random.Random(4)
     for i in range(14):
         x, y = rnd.uniform(-0.48, 0.48), rnd.uniform(-0.18, 0.18)
-        k.blob((x, y, 0.56), (0.07, 0.07, 0.06), "hedge_bush", subdiv=1, noise=0.15, seed=i)
+        k.blob((x, y, 0.56), (0.08, 0.08, 0.07), "hedge_bush", subdiv=1, noise=0.25, seed=i)
         k.blob((x + 0.02, y - 0.02, 0.64), (0.035, 0.035, 0.025), rnd.choice(["flower_red", "flower_yellow"]),
                subdiv=1)
 
 
 def hedge(k):
-    """2 m of clipped box hedge."""
+    """2 m of clipped box hedge: a boxy core covered in small leaf cards,
+    so the top and sides read as clipped but the outline stays leafy."""
+    k.block((0, 0, 0.42), (1.9, 0.62, 0.8), "hedge_bush", bevel=0.12, segments=2, smooth=True)
     for i in range(4):
-        k.blob((-0.75 + i * 0.5, 0, 0.42), (0.42, 0.36, 0.46), "hedge_bush", subdiv=2, noise=0.06, seed=i,
-               flat_bottom=0.0)
+        k.leaves((-0.72 + i * 0.48, 0, 0.45), (0.36, 0.38, 0.44), "hedge_bush", seed=i, bend_centre=(0, 0, 0.3),
+                 leaves=46, leaf_size=(0.16, 0.24), core=0.9, up_bias=0.2, droop=0.05, min_z=0.0)
 
 
 def tree_pine(k):
-    """Blue spruce, common in the yards between the blocks."""
-    k.rod((0, 0, 0), (0, 0, 1.2), 0.14, "trunk", seg=10, r1=0.1)
+    """Blue spruce, common in the yards between the blocks: stacked,
+    drooping, star-shaped tiers with flat facets."""
+    k.rod((0, 0, 0), (0, 0, 1.4), 0.15, "trunk", seg=10, r1=0.1)
     H = 7.5
-    tiers = 6
+    tiers = 7
+    rnd = random.Random(11)
+    k.begin()
+    m = k.mi("pine_leaf")
     for i in range(tiers):
         t = i / tiers
-        z0 = 0.8 + t * (H - 1.6)
-        r = 2.0 * (1 - t) + 0.35
-        k.begin()
-        ring = [k.bm.verts.new((math.cos(a) * r, math.sin(a) * r, z0 + 0.25 * math.sin(5 * a) * (1 - t) * 0.3))
-                for a in (2 * math.pi * j / 14 for j in range(14))]
-        tip = k.bm.verts.new((0, 0, z0 + 2.4 - t * 0.6))
-        for j in range(14):
-            k.bm.faces.new((ring[j], ring[(j + 1) % 14], tip))
-        k.bm.faces.new(list(reversed(ring)))
-        faces = list(k.new_faces())
-        bmesh.ops.recalc_face_normals(k.bm, faces=faces)
-        k._tag(faces, "pine_leaf", True)
-        k.end()
+        z0 = 1.0 + t * (H - 2.0)
+        r = 2.1 * (1 - t) ** 1.1 + 0.3
+        fol.spruce_tier(k.bm, z0, r, 1.5 - t * 0.5, rnd, m, points=9 - i // 2, droop=0.5 * (1 - t) + 0.15)
+    k.end()
+    k.rod((0, 0, H - 0.3), (0, 0, H + 0.5), 0.06, "pine_leaf", seg=6, r1=0.005)
 
 
 def tree_birch(k):
-    """Birch: thin white trunk and a few loose, light canopy clumps."""
-    k.pipe([(0, 0, 0), (0.05, 0.02, 2.5), (0.0, 0.0, 5.0), (-0.1, 0.05, 7.0)], 0.12, "birch_bark", seg=10,
+    """Birch: thin white trunk, a few forking limbs and loose, light leaf
+    clumps at their ends."""
+    k.pipe([(0, 0, 0), (0.05, 0.02, 2.5), (0.0, 0.0, 5.0), (-0.1, 0.05, 7.0)], 0.13, "birch_bark", seg=10,
            r1=0.05)
-    k.rod((0.03, 0.01, 3.4), (0.9, 0.3, 4.6), 0.04, "birch_bark", seg=6, r1=0.02)
-    k.rod((0.0, 0.0, 4.0), (-0.8, -0.4, 5.2), 0.04, "birch_bark", seg=6, r1=0.02)
-    rnd = random.Random(7)
-    for i, (x, y, z, r) in enumerate(((0, 0, 6.6, 1.3), (0.9, 0.3, 5.2, 1.0), (-0.8, -0.4, 5.6, 1.05),
-                                      (0.2, -0.6, 4.6, 0.9), (-0.3, 0.6, 4.9, 0.9))):
-        k.blob((x, y, z), (r, r, r * 1.15), "birch_leaf", subdiv=2, noise=0.1, seed=i)
+    k.rod((0.03, 0.01, 3.4), (0.9, 0.3, 4.6), 0.05, "birch_bark", seg=7, r1=0.025)
+    k.rod((0.0, 0.0, 4.0), (-0.8, -0.4, 5.2), 0.05, "birch_bark", seg=7, r1=0.025)
+    k.rod((0.0, 0.0, 4.4), (0.25, -0.65, 4.9), 0.04, "birch_bark", seg=6, r1=0.02)
+    for i, (x, y, z, r) in enumerate(((0, 0, 6.6, 1.25), (0.95, 0.3, 5.1, 0.95), (-0.85, -0.4, 5.5, 1.0),
+                                      (0.25, -0.7, 4.8, 0.85), (-0.3, 0.6, 5.0, 0.85), (0.1, 0.1, 5.8, 1.0))):
+        k.leaves((x, y, z), (r, r, r * 1.15), "birch_leaf", seed=20 + i, bend_centre=(0, 0, 5.6),
+                 leaves=int(26 + 14 * r), leaf_size=(0.26, 0.4), core=0.6, droop=0.5)
 
 
 ASSETS = {

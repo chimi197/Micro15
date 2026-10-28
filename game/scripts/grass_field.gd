@@ -126,8 +126,8 @@ func _make_clump_mesh() -> Mesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
-	var root := Color("#4e8d2f")
-	var tip := Color("#9fd255")
+	var root := Color("#5e8a3c")
+	var tip := Color("#a6c66a")
 	for b in 7:
 		var a := rng.randf() * TAU
 		var base := Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.09)
@@ -158,7 +158,7 @@ func _make_clump_mesh() -> Mesh:
 func _make_flower_mesh() -> Mesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var stem := Color("#4f8f33")
+	var stem := Color("#5a8a3c")
 	var h := 0.32
 	for v in [[Vector3(-0.012, 0, 0), 0.0], [Vector3(0.012, 0, 0), 0.0], [Vector3(0, h, 0), 1.0]]:
 		st.set_color(stem)

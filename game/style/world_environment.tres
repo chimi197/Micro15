@@ -1,11 +1,12 @@
 [gd_resource type="Environment" load_steps=3 format=3]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
-sky_top_color = Color(0.42, 0.68, 0.9, 1)
-sky_horizon_color = Color(0.82, 0.92, 0.96, 1)
-sky_curve = 0.18
-ground_bottom_color = Color(0.62, 0.72, 0.62, 1)
-ground_horizon_color = Color(0.82, 0.92, 0.96, 1)
+sky_top_color = Color(0.38, 0.6, 0.84, 1)
+sky_horizon_color = Color(0.78, 0.86, 0.9, 1)
+sky_curve = 0.2
+ground_bottom_color = Color(0.42, 0.44, 0.36, 1)
+ground_horizon_color = Color(0.78, 0.86, 0.9, 1)
+ground_curve = 0.06
 sun_angle_max = 6.0
 sun_curve = 0.08
 
@@ -15,15 +16,23 @@ sky_material = SubResource("sky_mat")
 [resource]
 background_mode = 2
 sky = SubResource("sky")
-ambient_light_source = 2
-ambient_light_color = Color(0.7, 0.72, 0.9, 1)
-reflected_light_source = 1
-tonemap_mode = 0
+ambient_light_source = 3
+ambient_light_sky_contribution = 1.0
+ambient_light_energy = 0.9
+reflected_light_source = 2
+tonemap_mode = 2
+tonemap_exposure = 1.05
+tonemap_white = 6.0
+ssao_enabled = true
+ssao_radius = 1.2
+ssao_intensity = 1.2
+ssao_power = 1.4
+ssao_detail = 0.0
+ssao_horizon = 0.1
+ssao_sharpness = 0.98
+ssao_light_affect = 0.15
 fog_enabled = true
-fog_light_color = Color(0.8, 0.9, 0.96, 1)
-fog_density = 0.0009
-fog_aerial_perspective = 0.35
+fog_light_color = Color(0.76, 0.84, 0.9, 1)
+fog_density = 0.0007
+fog_aerial_perspective = 0.5
 fog_sky_affect = 0.0
-adjustment_enabled = true
-adjustment_contrast = 1.03
-adjustment_saturation = 1.08
