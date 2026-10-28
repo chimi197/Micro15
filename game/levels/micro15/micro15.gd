@@ -94,6 +94,10 @@ func _take_shots() -> void:
 		$SunCycle.apply()
 		for i in 30:
 			await get_tree().process_frame
+		var t0 := Time.get_ticks_usec()
+		for i in 30:
+			await get_tree().process_frame
+		print("%-16s %.1f ms a frame" % [shot_name, (Time.get_ticks_usec() - t0) / 30000.0])
 		get_viewport().get_texture().get_image().save_png(out_dir.path_join(shot_name + ".png"))
 	get_tree().quit()
 

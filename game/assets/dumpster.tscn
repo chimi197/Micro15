@@ -4,11 +4,11 @@
 [ext_resource type="ArrayMesh" path="res://assets/meshes/dumpster.res" id="2_w7rxe"]
 [ext_resource type="Shape3D" path="res://assets/meshes/dumpster_shape.res" id="3_ycopu"]
 
-[node name="dumpster" type="StaticBody3D" unique_id=744974787]
+[node name="dumpster" type="StaticBody3D" unique_id=1704742382]
 script = ExtResource("1_8fu0b")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=1881224594]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1600585613]
 mesh = ExtResource("2_w7rxe")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=963819354]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=416258108]
 shape = ExtResource("3_ycopu")

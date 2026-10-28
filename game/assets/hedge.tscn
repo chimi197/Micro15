@@ -4,14 +4,14 @@
 [ext_resource type="ArrayMesh" path="res://assets/meshes/hedge.res" id="2_12kf8"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_av47d"]
-size = Vector3(2.5031006, 1.007994, 1.0555177)
+size = Vector3(2.1246502, 1.0008545, 0.8461112)
 
-[node name="hedge" type="StaticBody3D" unique_id=1554019314]
+[node name="hedge" type="StaticBody3D" unique_id=1327522616]
 script = ExtResource("1_b02vk")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=2078515552]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=494211068]
 mesh = ExtResource("2_12kf8")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=741381861]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.008410454, 0.43208763, -0.0042954683)
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=177692368]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.016247034, 0.42435366, 0.0017518103)
 shape = SubResource("BoxShape3D_av47d")

@@ -146,8 +146,8 @@ class Plant:
         the bent normals (default: this cluster). min_z keeps leaves above
         the ground (bushes)."""
         if self.far:
-            leaf_len *= 2.1
-            coverage *= 0.85
+            leaf_len *= 2.5
+            coverage *= 0.8
         width = leaf_len * 0.62
         rx, ry, rz = radii
         area = 4.0 * math.pi * ((rx * ry) ** 1.6 + (rx * rz) ** 1.6 + (ry * rz) ** 1.6) ** (1 / 1.6) / 3 ** (1 / 1.6)
@@ -237,7 +237,7 @@ def _crown_of(clusters):
 # ----------------------------------------------------------------------------
 # Plants
 # ----------------------------------------------------------------------------
-def broadleaf(P, seed, leaf, bark="bark", trunk_h=4.4, crown_r=3.2, limbs=5, leaf_len=0.4, coverage=1.25):
+def broadleaf(P, seed, leaf, bark="bark", trunk_h=4.4, crown_r=3.2, limbs=5, leaf_len=0.45, coverage=0.8):
     """Street tree (lime, maple, ash): a tall clear trunk, limbs forking
     twice up into an oval crown, and a leaf cluster on every twig end and
     fork, so the crown is a heap of leafy lumps with gaps between them."""
@@ -250,27 +250,27 @@ def broadleaf(P, seed, leaf, bark="bark", trunk_h=4.4, crown_r=3.2, limbs=5, lea
     r_limb = 0.08 + crown_r * 0.02
     for k in range(limbs):
         a = a0 + math.tau * k / limbs + rng.uniform(-0.35, 0.35)
-        tilt = math.radians(rng.uniform(32, 55))
+        tilt = math.radians(rng.uniform(22, 42))
         d = Vector((math.cos(a) * math.sin(tilt), math.sin(a) * math.sin(tilt), math.cos(tilt)))
-        z = rng.uniform(0.82, 1.0)
-        _fork(P, m_bark, Vector((top.x * z, top.y * z, trunk_h * z)), d, crown_r * rng.uniform(0.45, 0.6), r_limb,
-              rng, 2, tips)
-    _fork(P, m_bark, top, (UP + _unit(rng) * 0.15).normalized(), crown_r * 0.6, r_limb, rng, 1, tips)
+        z = rng.uniform(0.72, 1.0)
+        _fork(P, m_bark, Vector((top.x * z, top.y * z, trunk_h * z)), d, crown_r * rng.uniform(0.5, 0.65), r_limb,
+              rng, 2, tips, spread=(0.3, 0.6), up=0.1)
+    _fork(P, m_bark, top, (UP + _unit(rng) * 0.15).normalized(), crown_r * 0.75, r_limb, rng, 1, tips)
     clusters = []
     for p, d, depth in tips:
         if depth == 0:
             r = crown_r * rng.uniform(0.3, 0.38)
-            clusters.append((p + d * r * 0.4, Vector((r, r, r * 0.8))))
-        elif depth == 1 and rng.random() < 0.6:
+            clusters.append((p + d * r * 0.4, Vector((r, r, r * 0.85))))
+        elif depth == 1 and rng.random() < 0.5:
             r = crown_r * rng.uniform(0.26, 0.32)
-            clusters.append((p + d * r * 0.3, Vector((r, r, r * 0.8))))
+            clusters.append((p + d * r * 0.3, Vector((r, r, r * 0.85))))
     crown = _crown_of(clusters)
     for c, r in clusters:
         P.cluster(c, r, rng, m_out, m_in, leaf_len, coverage, crown=crown)
     return crown
 
 
-def poplar(P, seed, leaf="poplar", bark="bark", height=13.0, leaf_len=0.32):
+def poplar(P, seed, leaf="poplar", bark="bark", height=13.0, leaf_len=0.36):
     """Lombardy poplar: a tall column of short, steep branches and leaf
     clusters hugging the trunk, the leaves pointing up."""
     rng = random.Random(seed)
@@ -286,12 +286,12 @@ def poplar(P, seed, leaf="poplar", bark="bark", height=13.0, leaf_len=0.32):
         d = Vector((math.cos(a) * 0.35, math.sin(a) * 0.35, 1.0)).normalized()
         base = Vector((0, 0, z))
         P.limb(base, base + d * width * 1.2, 0.07, 0.03, m_bark, rng, seg=5)
-        c = base + d * width * 0.9
-        clusters.append((c, Vector((width * 0.8, width * 0.8, width * 1.1))))
+        c = base + d * width * 0.35
+        clusters.append((c, Vector((width * 0.85, width * 0.85, width * 1.1))))
         z += rng.uniform(0.7, 1.0)
     crown = _crown_of(clusters)
     for c, r in clusters:
-        P.cluster(c, r, rng, m_out, m_in, leaf_len, 1.25, hang=-0.35, crown=crown, normal_up=0.3)
+        P.cluster(c, r, rng, m_out, m_in, leaf_len, 0.8, hang=-0.35, crown=crown, normal_up=0.3)
     return crown
 
 
@@ -381,7 +381,7 @@ def bush(P, seed, leaf="bush", flowers=None, size=1.0, leaf_len=0.24):
         P.limb(Vector((c.x * 0.3, c.y * 0.3, 0)), c, 0.035, 0.015, m_twig, rng, seg=5)
     crown = _crown_of(clusters)
     for c, r in clusters:
-        P.cluster(c, r, rng, m_out, m_in, leaf_len, 1.35, hang=0.1, crown=crown, min_z=0.0)
+        P.cluster(c, r, rng, m_out, m_in, leaf_len, 0.9, hang=0.1, crown=crown, min_z=0.0)
     if flowers:
         fm = P.mi(flowers)
         for _ in range(16):

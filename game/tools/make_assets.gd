@@ -1,7 +1,8 @@
 ## Turns every prop model into a placeable scene in res://assets/: the mesh
 ## (saved to assets/meshes/), styled through StyledModel, with collision.
 ## The admin placement tool lists these scenes, and they can be dragged
-## into any level in the editor.
+## into any level in the editor. The "_far" meshes (lighter trees and
+## bushes for the distance) are left out.
 ##
 ##   godot --headless --path game --script res://tools/make_assets.gd
 extends SceneTree
@@ -23,6 +24,8 @@ func _init() -> void:
 	for src: String in SOURCES:
 		var root: Node = load(src).instantiate()
 		for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+			if String(mi.name).ends_with("_far"):
+				continue
 			made.append(_make(String(mi.name), mi.mesh))
 		root.free()
 	print("assets: ", made)
