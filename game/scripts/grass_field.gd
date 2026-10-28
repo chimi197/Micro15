@@ -126,8 +126,8 @@ func _make_clump_mesh() -> Mesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
-	var root := Color("#5e8a3c")
-	var tip := Color("#a6c66a")
+	var root := Color("#57823a")
+	var tip := Color("#98b862")
 	for b in 7:
 		var a := rng.randf() * TAU
 		var base := Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.09)

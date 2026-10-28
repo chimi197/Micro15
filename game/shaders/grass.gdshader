@@ -3,10 +3,13 @@
 // sway in the wind and are lit with the ground's normal, so a lawn reads as
 // one surface with the blades as texture.
 shader_type spatial;
-render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
+render_mode cull_disabled;
 
 uniform float wind_strength = 0.18;
 uniform vec2 wind_direction = vec2(1.0, 0.35);
+
+const float specular = 0.0;
+#include "res://shaders/soft_light.gdshaderinc"
 
 varying float shade;
 
@@ -26,4 +29,5 @@ void fragment() {
 	// vertex colours are sRGB
 	ALBEDO = pow(COLOR.rgb, vec3(2.2)) * mix(0.88, 1.08, shade);
 	ROUGHNESS = 0.95;
+	SPECULAR = 0.1;
 }

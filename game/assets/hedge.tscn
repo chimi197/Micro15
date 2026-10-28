@@ -1,14 +1,17 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_12kf8"]
-[ext_resource type="ArrayMesh" path="res://assets/meshes/hedge.res" id="2_av47d"]
-[ext_resource type="Shape3D" path="res://assets/meshes/hedge_shape.res" id="3_krjsy"]
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_b02vk"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/hedge.res" id="2_12kf8"]
 
-[node name="hedge" type="StaticBody3D" unique_id=951729093]
-script = ExtResource("1_12kf8")
+[sub_resource type="BoxShape3D" id="BoxShape3D_av47d"]
+size = Vector3(2.2770395, 0.9493352, 0.90491605)
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=1510875812]
-mesh = ExtResource("2_av47d")
+[node name="hedge" type="StaticBody3D" unique_id=313716143]
+script = ExtResource("1_b02vk")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=982472662]
-shape = ExtResource("3_krjsy")
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1259073851]
+mesh = ExtResource("2_12kf8")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=525005965]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.007229686, 0.42377028, 0.006354809)
+shape = SubResource("BoxShape3D_av47d")

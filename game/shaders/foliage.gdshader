@@ -4,17 +4,19 @@
 // facing up are lighter and yellower, leaves facing down darker, and each
 // clump varies a little; the crown sways gently.
 shader_type spatial;
-render_mode cull_disabled, diffuse_lambert_wrap, specular_schlick_ggx;
+render_mode cull_disabled;
 
 uniform vec4 tint : source_color = vec4(0.36, 0.6, 0.29, 1.0);
 uniform vec3 top_tint : source_color = vec3(1.12, 1.12, 0.92);   // multiplies the colour on top
-uniform vec3 under_tint : source_color = vec3(0.62, 0.7, 0.72);  // ... and underneath
+uniform vec3 under_tint : source_color = vec3(0.7, 0.77, 0.77);  // ... and underneath
 uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform float variation = 0.12;
 uniform float roughness : hint_range(0.0, 1.0) = 0.85;
 uniform float specular : hint_range(0.0, 1.0) = 0.15;
 uniform float sway = 0.06;
 uniform float sway_from = 2.0;      // metres above the origin where swaying starts
+
+#include "res://shaders/soft_light.gdshaderinc"
 
 varying float v_up;
 varying vec3 v_world;

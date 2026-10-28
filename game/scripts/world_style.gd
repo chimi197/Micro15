@@ -36,17 +36,17 @@ static func add_environment(parent: Node, fog_density := 0.0012, shadow_distance
 
 
 static func setup_sun(sun: DirectionalLight3D, shadow_distance := 220.0) -> void:
-	sun.rotation_degrees = Vector3(-46, 35, 0)
+	sun.rotation_degrees = Vector3(-46, 35, 0)       # same as the Sun in micro15.tscn
 	sun.light_color = Color(1.0, 0.95, 0.86)
-	sun.light_energy = 1.5
+	sun.light_energy = 1.35
 	sun.light_angular_distance = 0.6
 	sun.shadow_enabled = true
-	sun.shadow_blur = 1.0
+	sun.shadow_blur = 1.5
 	sun.shadow_bias = 0.08
 	sun.shadow_normal_bias = 2.5      # keeps round tree canopies free of shadow acne
 	sun.directional_shadow_max_distance = shadow_distance
 	# a small first split keeps shadows on and around the player crisp
-	sun.directional_shadow_split_1 = 0.03
+	sun.directional_shadow_split_1 = 0.05
 	sun.directional_shadow_split_2 = 0.1
 	sun.directional_shadow_split_3 = 0.3
 	sun.directional_shadow_blend_splits = true

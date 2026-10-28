@@ -28,7 +28,7 @@ COLOURS = {
     "concrete": "#c9c4b8", "concrete_dark": "#a8a397", "bin_green": "#3d8a52", "container": "#2f6e45",
     "rubber": "#2a2b2e", "red": "#d0503c", "yellow": "#f0c040", "blue": "#3f78c8", "white": "#f2f0ea",
     "soil": "#6b4b34", "flower_red": "#e0475a", "flower_yellow": "#f6d04d", "trunk": "#7a5a43",
-    "birch_bark": "#ece8df", "pine_leaf": "#2f6a46", "birch_leaf": "#8cc65a", "hedge_bush": "#4f8f3e",
+    "birch_bark": "#ece8df", "birch_mark": "#3d3a37", "pine_leaf": "#2f6a46", "birch_leaf": "#8cc65a", "hedge_bush": "#4f8f3e",
     "chess_dark": "#5a5650",
 }
 
@@ -375,7 +375,7 @@ def hedge(k):
     k.block((0, 0, 0.42), (1.9, 0.62, 0.8), "hedge_bush", bevel=0.12, segments=2, smooth=True)
     for i in range(4):
         k.leaves((-0.72 + i * 0.48, 0, 0.45), (0.36, 0.38, 0.44), "hedge_bush", seed=i, bend_centre=(0, 0, 0.3),
-                 leaves=46, leaf_size=(0.16, 0.24), core=0.9, up_bias=0.2, droop=0.05, min_z=0.0)
+                 leaves=60, leaf_size=(0.45, 0.65), core=0.9, up_bias=0.2, droop=0.05, min_z=0.0)
 
 
 def tree_pine(k):
@@ -393,7 +393,8 @@ def tree_pine(k):
         r = 2.1 * (1 - t) ** 1.1 + 0.3
         fol.spruce_tier(k.bm, z0, r, 1.5 - t * 0.5, rnd, m, points=9 - i // 2, droop=0.5 * (1 - t) + 0.15)
     k.end()
-    k.rod((0, 0, H - 0.3), (0, 0, H + 0.5), 0.06, "pine_leaf", seg=6, r1=0.005)
+    top = 1.0 + (tiers - 1) / tiers * (H - 2.0) + 1.5 - (tiers - 1) / tiers * 0.5
+    k.rod((0, 0, top - 0.3), (0, 0, top + 0.5), 0.06, "pine_leaf", seg=6, r1=0.005)
 
 
 def tree_birch(k):
@@ -404,10 +405,15 @@ def tree_birch(k):
     k.rod((0.03, 0.01, 3.4), (0.9, 0.3, 4.6), 0.05, "birch_bark", seg=7, r1=0.025)
     k.rod((0.0, 0.0, 4.0), (-0.8, -0.4, 5.2), 0.05, "birch_bark", seg=7, r1=0.025)
     k.rod((0.0, 0.0, 4.4), (0.25, -0.65, 4.9), 0.04, "birch_bark", seg=6, r1=0.02)
+    rnd = random.Random(3)
+    for z in (0.5, 1.1, 1.6, 2.3, 2.9, 3.6):          # the dark bands that make it read as a birch
+        r = 0.13 - 0.08 * z / 7.0 + 0.006
+        k.rod((0.05 * z / 2.5, 0.02 * z / 2.5, z), (0.05 * z / 2.5, 0.02 * z / 2.5, z + rnd.uniform(0.05, 0.1)), r,
+              "birch_mark", seg=10)
     for i, (x, y, z, r) in enumerate(((0, 0, 6.6, 1.25), (0.95, 0.3, 5.1, 0.95), (-0.85, -0.4, 5.5, 1.0),
                                       (0.25, -0.7, 4.8, 0.85), (-0.3, 0.6, 5.0, 0.85), (0.1, 0.1, 5.8, 1.0))):
         k.leaves((x, y, z), (r, r, r * 1.15), "birch_leaf", seed=20 + i, bend_centre=(0, 0, 5.6),
-                 leaves=int(26 + 14 * r), leaf_size=(0.26, 0.4), core=0.6, droop=0.5)
+                 leaves=int(40 + 14 * r), leaf_size=(0.4, 0.6), core=0.7, droop=0.35)
 
 
 ASSETS = {

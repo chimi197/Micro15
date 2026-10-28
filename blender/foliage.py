@@ -47,12 +47,14 @@ def leaf(bm, p, outward, length, width, rng, m, droop=0.3, fold=0.12):
             f.normal_flip()
 
 
-def clump(bm, centre, radii, rng, m, leaves=44, leaf_size=(0.38, 0.58), core=0.72, up_bias=0.35,
-          droop=0.3, lump=0.18, min_z=None):
-    """A clump of leaves: a lumpy core (radii scaled by core) and leaf cards
-    scattered over the surface of the ellipsoid radii. min_z flattens the
-    clump on the ground (bushes, hedges)."""
+def clump(bm, centre, radii, rng, m, leaves=56, leaf_size=(0.5, 0.75), core=0.78, up_bias=0.35,
+          droop=0.2, lump=0.15, min_z=None):
+    """A clump of leaves: a lumpy core (radii scaled by core) covered in
+    overlapping leaf cards on the surface of the ellipsoid radii, which
+    also break its outline. leaf_size is a fraction of the mean radius.
+    min_z flattens the clump on the ground (bushes, hedges)."""
     rx, ry, rz = radii
+    mean_r = (rx + ry + rz) / 3
     res = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0)
     seed = rng.uniform(0, 100)
     for v in res["verts"]:
@@ -66,12 +68,12 @@ def clump(bm, centre, radii, rng, m, leaves=44, leaf_size=(0.38, 0.58), core=0.7
         f.smooth = True
     for _ in range(leaves):
         d = _random_dir(rng, up_bias)
-        k = rng.uniform(0.8, 1.05)
+        k = rng.uniform(0.85, 1.02)
         p = centre + Vector((d.x * rx * k, d.y * ry * k, d.z * rz * k))
         if min_z is not None:
             p.z = max(p.z, min_z + 0.08)
         out = Vector((d.x / rx, d.y / ry, d.z / rz)).normalized()
-        L = rng.uniform(*leaf_size)
+        L = rng.uniform(*leaf_size) * mean_r
         leaf(bm, p, out, L, L * rng.uniform(0.55, 0.75), rng, m, droop=droop)
 
 

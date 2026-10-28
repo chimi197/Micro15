@@ -553,7 +553,7 @@ def make_tree(name, col, seed, leaf, height=3.2, spread=2.4, nblobs=7):
                        spread * rng.uniform(0.45, 0.6)))
     clumps.append((centre + Vector((rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), spread * 0.8)), spread * 0.5))
     for c, r in clumps:
-        fol.clump(B.bm, c, (r, r, r * 0.9), rng, li, leaves=int(30 + 10 * r), leaf_size=(0.4, 0.62))
+        fol.clump(B.bm, c, (r, r, r * 0.9), rng, li, leaves=int(44 + 14 * r))
     ob = B.finish(name, col)
     bent_normals(ob, centre, li)
     return ob
@@ -566,11 +566,11 @@ def make_poplar(name, col, seed):
     trunk(B, B.mi("bark"), 2.8, rng, branches=0, r0=0.25)
     li = B.mi("poplar")
     for k in range(8):
-        z = 2.4 + k * 1.45
+        z = 2.4 + k * 1.3
         r = 1.35 * math.sin(math.pi * (k + 0.9) / 8.8) + 0.3
-        c = Vector((rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), z))
-        fol.clump(B.bm, c, (r, r, r * 1.25), rng, li, leaves=int(26 + 12 * r), leaf_size=(0.32, 0.48),
-                  up_bias=0.6, droop=0.1)
+        c = Vector((rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), z + rng.uniform(-0.2, 0.2)))
+        fol.clump(B.bm, c, (r, r, r * 1.3), rng, li, leaves=int(40 + 14 * r), leaf_size=(0.45, 0.65),
+                  up_bias=0.5, droop=0.05)
     ob = B.finish(name, col)
     bent_normals(ob, Vector((0, 0, 7.5)), li, axis_scale=0.25)
     return ob
@@ -581,16 +581,19 @@ def make_bush(name, col, seed, flowers=False):
     B = Builder()
     li = B.mi("bush")
     centre = Vector((0, 0, 0.45))
+    clumps = []
     for _ in range(4):
         c = Vector((rng.uniform(-0.8, 0.8), rng.uniform(-0.45, 0.45), rng.uniform(0.4, 0.65)))
         r = rng.uniform(0.55, 0.8)
-        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, leaves=int(22 + 14 * r), leaf_size=(0.26, 0.4),
-                  min_z=0.0)
+        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, leaves=44, min_z=0.0)
+        clumps.append((c, r))
     if flowers:
         fm = B.mi("flower")
-        for _ in range(12):
+        for _ in range(14):
+            c, r = rng.choice(clumps)
             a = rng.uniform(0, math.tau)
-            p = centre + Vector((math.cos(a) * 1.0, math.sin(a) * 0.62, rng.uniform(0.2, 0.65)))
+            e = rng.uniform(0.1, 1.2)
+            p = c + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e) * 0.85)) * r * 0.98
             r = bmesh.ops.create_icosphere(B.bm, subdivisions=1, radius=0.09, matrix=Matrix.Translation(p))
             for f in {f for v in r["verts"] for f in v.link_faces}:
                 f.material_index = fm

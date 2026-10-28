@@ -31,8 +31,8 @@ const FAMILIES := {
 	"hair": {"roughness": 0.55, "specular": 0.35},
 	"cloth": {"roughness": 0.95, "specular": 0.15},
 	"eye": {"roughness": 0.2, "specular": 0.5},
-	"foliage": {"shader": "foliage"},
-	"lawn": {"shader": "lawn"},
+	"foliage": {"shader": "foliage", "light_wrap": 0.45},
+	"lawn": {"shader": "lawn", "light_wrap": 0.3},
 }
 
 ## Material name (without C3_/CH_) starts with: family. First match wins.
@@ -71,9 +71,9 @@ const PALETTE := {
 	"C3_house_ffffff": "#efebe3", "C3_school": "#dfb877", "C3_plinth": "#8a8178", "C3_parapet_white": "#e9e4d8",
 	"C3_slab": "#cfc8b8", "C3_roof": "#7d7a74", "C3_roof_tile": "#b0583f", "C3_roof_dark": "#6a4a3e",
 	# ground
-	"C3_asphalt": "#626977", "C3_parking": "#6d7380", "C3_pavement": "#cfc7b6", "C3_kerb": "#a9a194",
-	"C3_path": "#d6c49a", "C3_sand": "#dcc595", "C3_line": "#ebe6d6", "C3_lawn": "#8daf5c",
-	"C3_pitch": "#76a352",
+	"C3_asphalt": "#65686f", "C3_parking": "#6f727a", "C3_pavement": "#cfc7b6", "C3_kerb": "#a9a194",
+	"C3_path": "#d6c49a", "C3_sand": "#dcc595", "C3_line": "#ebe6d6", "C3_lawn": "#84a656",
+	"C3_pitch": "#6f9a4e",
 	# foliage
 	"C3_leaf_a": "#5f9748", "C3_leaf_b": "#77a84c", "C3_leaf_c": "#4e8443", "C3_poplar": "#4a7f45",
 	"C3_bush": "#5c9446", "C3_hedge_bush": "#56893f", "C3_pine_leaf": "#3e6b57", "C3_birch_leaf": "#97bd5d",

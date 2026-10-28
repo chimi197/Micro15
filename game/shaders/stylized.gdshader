@@ -1,10 +1,10 @@
 // Surfaces of the world and the characters (see docs/art_direction.md):
-// Godot's standard lighting with a soft (wrapped) terminator, real
+// soft_light.gdshaderinc lighting (a soft, wrapped terminator), real
 // roughness and specular per material family, and restrained painted
 // variation: large-scale mottling, optional fine speckle, optional paving
 // seams and a darker band near the ground (grime). No outlines, no bands.
 shader_type spatial;
-render_mode cull_back, diffuse_lambert_wrap, specular_schlick_ggx;
+render_mode cull_back;
 
 uniform vec4 tint : source_color = vec4(1.0);
 uniform float roughness : hint_range(0.0, 1.0) = 0.9;
@@ -22,6 +22,8 @@ uniform float grime = 0.0;              // how much darker the surface gets at t
 uniform float grime_height = 1.2;       // metres the grime fades over
 uniform float seams = 0.0;              // strength of paving-slab seams (horizontal surfaces)
 uniform float seam_size = 1.0;          // slab size in metres
+
+#include "res://shaders/soft_light.gdshaderinc"
 
 varying vec3 v_tint;
 varying vec3 v_world;

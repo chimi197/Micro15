@@ -8,13 +8,24 @@ use other camera styles later.
 
 ## Art direction
 
-Flat "vector" look in the spirit of [the style reference](docs/style_reference.png):
-cel shading with three soft-edged light bands, no textures, a soft sky,
-distance haze and thin ink lines. The lines take a darker, cooler shade of
-the surface they outline instead of black, grow smoothly with the edge
-instead of popping, and fade out with distance (creases after 8–30 m,
-silhouettes after 20–110 m), so they stay calm while moving. SMAA smooths
-the final image.
+Stylized 3D in sunny mid-morning daylight, with no outlines: light and shadow
+draw the forms. The rules (shape language, triangle budgets, material
+families, palette, detail density and how to make new assets) are in
+[docs/art_direction.md](docs/art_direction.md). In short:
+
+* Soft direct light shared by every shader (`shaders/soft_light.gdshaderinc`:
+  slightly wrapped Lambert plus a broad highlight), soft sun shadows, sky
+  ambient with a neutral fill, SSAO for contact shadows, Filmic tonemapping,
+  light haze. No bloom, no colour grading. SMAA plus 2× MSAA.
+* Every imported material is matched by name to a family
+  (`scripts/material_library.gd`: plaster, concrete, asphalt, paving, painted
+  metal, wood, glass, foliage...) that sets its roughness, specular and
+  restrained surface variation (large-scale mottling, paving seams, a darker
+  band at the foot of walls), and a coordinated palette of muted pastels
+  replaces the raw model colours.
+* Trees, bushes and hedges are clumps of leaf cards around small cores with
+  normals bent outwards (`blender/foliage.py`); spruces are drooping,
+  faceted tiers; benches and lamps have chunky, chamfered parts.
 
 ## Playing (`game/`, Godot 4.7)
 
@@ -39,11 +50,12 @@ Everything is a real scene that opens and can be edited in the Godot editor:
 
 * `levels/micro15/micro15.tscn`: the level, as nodes. `WorldEnvironment`
   (`style/world_environment.tres`) and `Sun`; `Ground` and `Buildings`
-  (the glTF scenes, cel-shaded by `scripts/styled_model.gd`, in the editor
+  (the glTF scenes, styled by `scripts/styled_model.gd`, in the editor
   too); `Details` and `Props` (`scripts/scatter.gd`: the repeated windows,
   balconies, trees and lamps drawn with MultiMeshes, visible in the editor);
   `Grass`; invisible `Bounds`; `Placed` (things placed with the admin tool,
-  `levels/micro15/placed.tscn`); `InkOutline` (`style/ink_outline.tres`); and
+  `levels/micro15/placed.tscn`); `InkOutline` (`style/ink_outline.tres`,
+  hidden; the admin tool shows it for comparison); and
   the `Player`.
 * `player/player.tscn`: collision capsule, the boy (`characters/kid/kid.glb`)
   and the camera on a spring arm; `scripts/player.gd` drives it. Inputs are
@@ -63,7 +75,7 @@ builds). F1 opens the admin bar:
 | T | teleport to the point under the mouse (or the screen centre) |
 | [ ] | movement speed down / up |
 | , . | sun higher / lower |
-| F2 / F3 | ink lines / 3D grass on or off |
+| F2 / F3 | old ink lines (silhouettes only, for comparison) / 3D grass on or off |
 | F12 | screenshot to `screenshots/` |
 
 Every change is saved straight to the level's `placed.tscn`, so placed
@@ -126,9 +138,8 @@ the ground speed (feet don't slide) and switched at the same point of the
 stride, leaning into turns and speed changes, hair bouncing on
 `SpringBoneSimulator3D`, jump, double jump, fall and landing, a crouch that
 lowers the collision capsule (and waits for room to stand up), a jab–cross
-punch combo, and `take_hit()` for a hit reaction. The character only gets
-ink on its outer edges (materials named `CH_*` write ink mode 0.5, see
-`ink_outline.gdshader`).
+punch combo, and `take_hit()` for a hit reaction. Its materials (`CH_*`) go
+through the same material library as the world (skin, hair, cloth, eye).
 
 ```python
 import sys; sys.path.insert(0, r"<repo>/blender")
@@ -193,9 +204,10 @@ Aleea Proiectantului) that sets the look for the whole map:
 * `game/scripts/grass_field.gd` scatters real 3D grass blades and small
   flowers on the lawns (MultiMesh chunks, drawn up to 75 m from the camera,
   swaying in the wind).
-* Shaders in `game/shaders/`: `toon` (three hard light bands),
-  `foliage` (round shading on tree canopies, sway), `grass`, `lawn`, and
-  `ink_outline` (ink lines on silhouettes and creases, fading with distance).
+* Shaders in `game/shaders/`: `stylized` (every made surface),
+  `foliage` (leaf clusters: lighter on top, darker underneath, sway),
+  `grass`, `lawn`, all lit by `soft_light.gdshaderinc`, and `ink_outline`
+  (the old ink lines, now only an admin toggle).
 * `game/levels/corner/corner.tscn` is the corner on its own (open it and
   press F6).
 
