@@ -216,6 +216,8 @@ func apply() -> void:
 	_env.glow_enabled = look.glow > 0.0
 	_env.glow_intensity = look.glow
 	_env.glow_bloom = look.glow * 0.1
+	_env.glow_hdr_threshold = 1.1
+	_env.glow_hdr_luminance_cap = 2.5                      # single hot pixels (sun glints) bloomed into big white blobs
 	_env.ssao_enabled = look.ssao > 0.0
 	_env.ssao_intensity = look.ssao
 	if _sky:
