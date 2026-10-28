@@ -1,9 +1,10 @@
 """Leaf-cluster foliage shared by the map props (build_corner_3d.py) and the
 street kit (build_assets.py), following docs/art_direction.md: canopies,
-bushes and hedges are clumps of double-sided leaf cards around a small
-lumpy core, so they have a ragged outline and light like soft volumes
-once their normals are bent outwards (bend_normals). Spruces are stacked,
-drooping, star-shaped tiers with flat facets.
+bushes and hedges are balls of overlapping leaf cards, each showing a
+painted bunch of leaves (game/style/leaf_*.png, alpha cut out), around a
+small dark core. Bent normals (bend_normals) make every crown light as
+one soft volume, lighter on top. Spruces are stacked, drooping,
+star-shaped tiers with flat facets.
 
 Every function adds faces to a bmesh with a given material index.
 """
@@ -15,66 +16,80 @@ from mathutils import Matrix, Vector, noise
 UP = Vector((0, 0, 1))
 
 
-def _random_dir(rng, up_bias):
-    """A random unit vector, more often pointing up when up_bias > 0."""
-    z = rng.uniform(-1.0, 1.0)
-    z = z + up_bias * (1.0 - z * z)
-    a = rng.uniform(0, math.tau)
-    s = math.sqrt(max(0.0, 1.0 - z * z))
-    return Vector((math.cos(a) * s, math.sin(a) * s, z)).normalized()
+def _sphere_dirs(n, rng, up_bias):
+    """n directions spread evenly over a sphere (golden spiral, randomly
+    turned and jittered), pushed upwards by up_bias."""
+    out = []
+    turn = rng.uniform(0, math.tau)
+    for i in range(n):
+        z = 1.0 - 2.0 * (i + 0.5) / n
+        z = max(-1.0, min(1.0, z + rng.uniform(-0.12, 0.12)))
+        z = z + up_bias * (1.0 - z * z)
+        a = turn + i * 2.399963 + rng.uniform(-0.3, 0.3)
+        s = math.sqrt(max(0.0, 1.0 - z * z))
+        out.append(Vector((math.cos(a) * s, math.sin(a) * s, z)).normalized())
+    return out
 
 
-def leaf(bm, p, outward, length, width, rng, m, droop=0.3, fold=0.12):
-    """One double-sided leaf card at p: a folded diamond facing mostly
-    outward and up, its tip pointing away from the clump and drooping."""
-    nrm = (outward + UP * 0.6).normalized()
-    t = outward - nrm * outward.dot(nrm)
-    if t.length < 1e-3:
-        t = nrm.orthogonal()
-    t = Matrix.Rotation(rng.uniform(-1.0, 1.0), 3, nrm) @ t.normalized()
-    b = nrm.cross(t)
-    base = p - t * length * 0.35
-    tip = p + t * length * 0.65 - UP * droop * length
-    l = p + b * width * 0.5 - nrm * fold * width
-    r = p - b * width * 0.5 - nrm * fold * width
-    vs = [bm.verts.new(v) for v in (base, r, tip, l)]
-    for tri in ((vs[0], vs[1], vs[2]), (vs[0], vs[2], vs[3])):
-        f = bm.faces.new(tri)
-        f.material_index = m
-        f.smooth = True
-        f.normal_update()
-        if f.normal.dot(nrm) < 0:
-            f.normal_flip()
+def card(bm, uv, centre, normal, width, height, rng, m, roll=0.6):
+    """One leaf card: a quad showing the leaf-cluster texture, facing
+    normal, its texture's up kept roughly upwards (rolled up to +-roll
+    radians) so the lighter leaves stay on top."""
+    nrm = normal.normalized()
+    side = UP.cross(nrm)
+    if side.length < 1e-3:
+        side = nrm.orthogonal()
+    side = Matrix.Rotation(rng.uniform(-roll, roll), 3, nrm) @ side.normalized()
+    up = nrm.cross(side)
+    if rng.random() < 0.5:                  # mirror half the cards
+        side = -side
+    hw, hh = side * width / 2, up * height / 2
+    corners = [centre - hw - hh, centre + hw - hh, centre + hw + hh, centre - hw + hh]
+    uvs = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    vs = [bm.verts.new(c) for c in corners]
+    f = bm.faces.new(vs)
+    f.material_index = m
+    f.smooth = True
+    f.normal_update()
+    if f.normal.dot(nrm) < 0:
+        f.normal_flip()
+    for loop in f.loops:
+        loop[uv].uv = uvs[vs.index(loop.vert)]
+    return f
 
 
-def clump(bm, centre, radii, rng, m, leaves=56, leaf_size=(0.5, 0.75), core=0.78, up_bias=0.35,
-          droop=0.2, lump=0.15, min_z=None):
-    """A clump of leaves: a lumpy core (radii scaled by core) covered in
-    overlapping leaf cards on the surface of the ellipsoid radii, which
-    also break its outline. leaf_size is a fraction of the mean radius.
-    min_z flattens the clump on the ground (bushes, hedges)."""
+def clump(bm, centre, radii, rng, m, cards=9, card_size=(1.3, 1.7), core_m=None, core=0.55,
+          spread=(0.25, 0.6), up_bias=0.3, lump=0.15, min_z=None, roll=0.6):
+    """A ball of leaves: leaf cards around centre (radii of the ellipsoid
+    they cover), facing outwards and a little up, overlapping so the
+    texture's leaves form a full, scalloped silhouette. card_size is a
+    fraction of the mean radius, spread how far out from the middle the
+    cards sit. core_m adds a small dark lumpy core (untextured material)
+    so the clump is never see-through in the middle. min_z flattens the
+    clump on the ground (bushes, hedges)."""
+    uv = bm.loops.layers.uv.verify()
     rx, ry, rz = radii
     mean_r = (rx + ry + rz) / 3
-    res = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0)
-    seed = rng.uniform(0, 100)
-    for v in res["verts"]:
-        d = v.co.normalized()
-        k = core * (1.0 + noise.noise(d * 1.7 + Vector((seed, seed, seed))) * lump)
-        v.co = centre + Vector((d.x * rx * k, d.y * ry * k, d.z * rz * k))
-        if min_z is not None:
-            v.co.z = max(v.co.z, min_z)
-    for f in {f for v in res["verts"] for f in v.link_faces}:
-        f.material_index = m
-        f.smooth = True
-    for _ in range(leaves):
-        d = _random_dir(rng, up_bias)
-        k = rng.uniform(0.85, 1.02)
+    if core_m is not None:
+        res = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0)
+        seed = rng.uniform(0, 100)
+        for v in res["verts"]:
+            d = v.co.normalized()
+            k = core * (1.0 + noise.noise(d * 1.7 + Vector((seed, seed, seed))) * lump)
+            v.co = centre + Vector((d.x * rx * k, d.y * ry * k, d.z * rz * k))
+            if min_z is not None:
+                v.co.z = max(v.co.z, min_z)
+        for f in {f for v in res["verts"] for f in v.link_faces}:
+            f.material_index = core_m
+            f.smooth = True
+    for d in _sphere_dirs(cards, rng, up_bias):
+        k = rng.uniform(*spread)
         p = centre + Vector((d.x * rx * k, d.y * ry * k, d.z * rz * k))
+        size = rng.uniform(*card_size) * mean_r
         if min_z is not None:
-            p.z = max(p.z, min_z + 0.08)
+            p.z = max(p.z, min_z + size * 0.42)
         out = Vector((d.x / rx, d.y / ry, d.z / rz)).normalized()
-        L = rng.uniform(*leaf_size) * mean_r
-        leaf(bm, p, out, L, L * rng.uniform(0.55, 0.75), rng, m, droop=droop)
+        card(bm, uv, p, (out + UP * 0.35).normalized(), size, size * rng.uniform(0.85, 1.0), rng, m, roll)
 
 
 def spruce_tier(bm, z0, radius, height, rng, m, points=9, droop=0.45):

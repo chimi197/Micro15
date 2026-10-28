@@ -499,30 +499,14 @@ def build_ground(data, col):
 # ----------------------------------------------------------------------------
 # Props: stylised 3D trees, bushes, lamps, benches
 # ----------------------------------------------------------------------------
-def bent_normals(ob, centre, leaf_index, strength=0.85, axis_scale=1.0):
+def bent_normals(ob, centre, leaf_indices, strength=0.85, axis_scale=1.0):
     """Point foliage normals away from the canopy centre (see foliage.py)."""
-    fol.bend_normals(ob, centre, {leaf_index}, strength, axis_scale)
+    fol.bend_normals(ob, centre, set(leaf_indices), strength, axis_scale)
 
 
-def trunk(B, m, height, rng, branches=3, r0=0.28):
-    """Tapered, slightly leaning trunk with forking branches. Returns the
-    branch tips (and the top of the trunk) for the leaf clumps."""
-    lean = Vector((rng.uniform(-0.15, 0.15), rng.uniform(-0.15, 0.15), 0))
-    top = Vector((0, 0, height)) + lean
-    _limb(B, Vector((0, 0, 0)), top, r0, r0 * 0.55, m, 9)
-    B.cylinder(Vector((0, 0, 0)), r0 * 1.35, 0.25, m, 9, r_top=r0, smooth=True)   # root flare
-    tips = [top]
-    a0 = rng.uniform(0, math.tau)
-    for k in range(branches):
-        a = a0 + math.tau * k / max(branches, 1) + rng.uniform(-0.4, 0.4)
-        tilt = rng.uniform(0.6, 0.95)
-        L = rng.uniform(1.3, 2.0)
-        z = height * rng.uniform(0.6, 0.85)
-        dirv = Vector((math.cos(a) * math.sin(tilt), math.sin(a) * math.sin(tilt), math.cos(tilt)))
-        base = Vector((0, 0, z)) + lean * (z / height)
-        _limb(B, base, base + dirv * L, r0 * 0.45, r0 * 0.2, m, 7)
-        tips.append(base + dirv * L)
-    return tips
+def leaf_mats(B, leaf):
+    """The textured leaf-card material and the untextured, darker core."""
+    return B.mi(leaf), B.mi(leaf + "_core", COLOURS[leaf])
 
 
 def _limb(B, p0, p1, r0, r1, m, segs):
@@ -535,57 +519,105 @@ def _limb(B, p0, p1, r0, r1, m, segs):
         f.smooth = len(f.verts) == 4
 
 
+def branch(B, m, p0, p1, r0, r1, rng, depth=1):
+    """A limb from p0 to p1 that forks into two thinner twigs near its end
+    (depth times). Returns the tips."""
+    _limb(B, p0, p1, r0, r1, m, 7 if r0 > 0.08 else 5)
+    if depth <= 0:
+        return [p1]
+    tips = []
+    d = (p1 - p0)
+    L = d.length
+    d.normalize()
+    side = d.cross(UP)
+    if side.length < 1e-3:
+        side = Vector((1, 0, 0))
+    side.normalize()
+    for sgn in (1, -1):
+        rot = Matrix.Rotation(sgn * rng.uniform(0.35, 0.6), 3, side.cross(d).normalized())
+        twig = (rot @ d + UP * 0.25).normalized() * L * rng.uniform(0.4, 0.55)
+        tips += branch(B, m, p1 - d * 0.05, p1 + twig, r1, r1 * 0.5, rng, depth - 1)
+    return tips
+
+
+def trunk(B, m, height, rng, branches=4, r0=0.28):
+    """Tapered, slightly leaning trunk with a root flare and limbs that
+    fork up into the crown. Returns the twig tips (and the top)."""
+    lean = Vector((rng.uniform(-0.12, 0.12), rng.uniform(-0.12, 0.12), 0))
+    top = Vector((0, 0, height)) + lean
+    _limb(B, Vector((0, 0, 0)), top, r0, r0 * 0.5, m, 9)
+    B.cylinder(Vector((0, 0, 0)), r0 * 1.35, 0.25, m, 9, r_top=r0, smooth=True)   # root flare
+    tips = [top]
+    a0 = rng.uniform(0, math.tau)
+    for k in range(branches):
+        a = a0 + math.tau * k / max(branches, 1) + rng.uniform(-0.4, 0.4)
+        tilt = rng.uniform(0.45, 0.8)
+        L = rng.uniform(1.4, 2.0)
+        z = height * rng.uniform(0.62, 0.85)
+        dirv = Vector((math.cos(a) * math.sin(tilt), math.sin(a) * math.sin(tilt), math.cos(tilt)))
+        base = Vector((0, 0, z)) + lean * (z / height)
+        tips += branch(B, m, base, base + dirv * L, r0 * 0.45, r0 * 0.25, rng)
+    return tips
+
+
 def make_tree(name, col, seed, leaf, height=3.2, spread=2.4, nblobs=7):
-    """Broadleaf tree: a forked trunk carrying a ragged crown of leaf
-    clumps, lighter on top and darker underneath (foliage shader)."""
+    """Broadleaf street tree (lime, maple): a clear trunk forking into an
+    oval crown of leaf balls. Each ball is overlapping leaf cards around a
+    small dark core; the balls sit on the outside of the crown with a few
+    gaps, and bent normals make the crown lighter on top and darker
+    underneath (foliage shader)."""
     rng = random.Random(seed)
     B = Builder()
-    tips = trunk(B, B.mi("bark"), height + 0.6, rng, branches=min(nblobs // 2, 4))
-    li = B.mi(leaf)
-    centre = Vector((0, 0, height + spread * 0.9))
-    clumps = [(centre + Vector((0, 0, spread * 0.25)), spread * 0.8)]
-    for t in tips[1:]:
-        clumps.append((t + Vector((0, 0, spread * 0.15)), spread * rng.uniform(0.5, 0.62)))
-    for k in range(nblobs - len(tips) + 1):
-        a = math.tau * k / max(nblobs - len(tips) + 1, 1) + rng.uniform(-0.5, 0.5)
-        rr = spread * rng.uniform(0.55, 0.8)
-        clumps.append((centre + Vector((math.cos(a) * rr, math.sin(a) * rr, rng.uniform(-0.5, 0.8))),
-                       spread * rng.uniform(0.45, 0.6)))
-    clumps.append((centre + Vector((rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), spread * 0.8)), spread * 0.5))
+    bark = B.mi("bark")
+    tips = trunk(B, bark, height + 0.9, rng, branches=4)
+    li, ci = leaf_mats(B, leaf)
+    centre = Vector((0, 0, height + spread * 0.75))
+    radii = Vector((spread, spread, spread * 1.12))
+    n = nblobs + 7
+    clumps = []
+    for d in fol._sphere_dirs(n, rng, 0.15):
+        k = rng.uniform(0.55, 0.72)
+        clumps.append((centre + Vector((d.x * radii.x * k, d.y * radii.y * k, d.z * radii.z * k)),
+                       spread * rng.uniform(0.42, 0.55)))
+    for t in tips[1:][::2]:                  # leaves on the twig ends too
+        clumps.append((t, spread * rng.uniform(0.32, 0.42)))
+    clumps.append((centre, spread * 0.6))
     for c, r in clumps:
-        fol.clump(B.bm, c, (r, r, r * 0.9), rng, li, leaves=int(44 + 14 * r))
+        fol.clump(B.bm, c, (r, r, r * 0.9), rng, li, cards=8, card_size=(1.25, 1.6), core_m=ci, core=0.6)
     ob = B.finish(name, col)
-    bent_normals(ob, centre, li)
+    bent_normals(ob, centre, (li, ci))
     return ob
 
 
 def make_poplar(name, col, seed):
-    """Lombardy poplar: a tall, narrow column of upward-pointing clumps."""
+    """Lombardy poplar: a tall, narrow column of leaf balls with their
+    cards pointing up."""
     rng = random.Random(seed)
     B = Builder()
-    trunk(B, B.mi("bark"), 2.8, rng, branches=0, r0=0.25)
-    li = B.mi("poplar")
-    for k in range(8):
-        z = 2.4 + k * 1.3
-        r = 1.35 * math.sin(math.pi * (k + 0.9) / 8.8) + 0.3
+    trunk(B, B.mi("bark"), 3.0, rng, branches=0, r0=0.25)
+    li, ci = leaf_mats(B, "poplar")
+    for k in range(11):
+        z = 2.6 + k * 0.95
+        r = 1.15 * math.sin(math.pi * (k + 1.2) / 12.4) + 0.3
         c = Vector((rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), z + rng.uniform(-0.2, 0.2)))
-        fol.clump(B.bm, c, (r, r, r * 1.3), rng, li, leaves=int(40 + 14 * r), leaf_size=(0.45, 0.65),
-                  up_bias=0.5, droop=0.05)
+        fol.clump(B.bm, c, (r, r, r * 1.2), rng, li, cards=8, card_size=(1.3, 1.6), core_m=ci,
+                  up_bias=0.45, roll=0.3)
     ob = B.finish(name, col)
-    bent_normals(ob, Vector((0, 0, 7.5)), li, axis_scale=0.25)
+    bent_normals(ob, Vector((0, 0, 7.5)), (li, ci), axis_scale=0.25)
     return ob
 
 
 def make_bush(name, col, seed, flowers=False):
     rng = random.Random(seed)
     B = Builder()
-    li = B.mi("bush")
+    li, ci = leaf_mats(B, "bush")
     centre = Vector((0, 0, 0.45))
     clumps = []
     for _ in range(4):
-        c = Vector((rng.uniform(-0.8, 0.8), rng.uniform(-0.45, 0.45), rng.uniform(0.4, 0.65)))
-        r = rng.uniform(0.55, 0.8)
-        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, leaves=44, min_z=0.0)
+        c = Vector((rng.uniform(-0.8, 0.8), rng.uniform(-0.45, 0.45), rng.uniform(0.4, 0.6)))
+        r = rng.uniform(0.55, 0.75)
+        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, cards=8, card_size=(1.3, 1.6), core_m=ci, core=0.7,
+                  min_z=0.0)
         clumps.append((c, r))
     if flowers:
         fm = B.mi("flower")
@@ -593,12 +625,12 @@ def make_bush(name, col, seed, flowers=False):
             c, r = rng.choice(clumps)
             a = rng.uniform(0, math.tau)
             e = rng.uniform(0.1, 1.2)
-            p = c + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e) * 0.85)) * r * 0.98
+            p = c + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e) * 0.85)) * r * 0.8
             r = bmesh.ops.create_icosphere(B.bm, subdivisions=1, radius=0.09, matrix=Matrix.Translation(p))
             for f in {f for v in r["verts"] for f in v.link_faces}:
                 f.material_index = fm
     ob = B.finish(name, col)
-    bent_normals(ob, centre, li)
+    bent_normals(ob, centre, (li, ci))
     return ob
 
 

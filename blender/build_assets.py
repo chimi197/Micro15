@@ -45,10 +45,12 @@ def hex_rgba(h):
 
 
 def material(name):
+    """C3_<name>; a "<leaf>_core" material (the untextured inside of a leaf
+    ball) takes its leaf's colour."""
     m = bpy.data.materials.get("C3_" + name)
     if m is None:
         m = bpy.data.materials.new("C3_" + name)
-        c = hex_rgba(COLOURS[name])
+        c = hex_rgba(COLOURS[name.removesuffix("_core")])
         m.diffuse_color = c
         m.use_nodes = True
         bsdf = m.node_tree.nodes.get("Principled BSDF")
@@ -93,10 +95,15 @@ class Kit:
     def end(self):
         piece, self.bm = self.bm, self.main
         vmap = {v: self.bm.verts.new(v.co) for v in piece.verts}
+        src_uv = piece.loops.layers.uv.active
+        dst_uv = self.bm.loops.layers.uv.verify() if src_uv else None
         for f in piece.faces:
             nf = self.bm.faces.new([vmap[v] for v in f.verts])
             nf.material_index = f.material_index
             nf.smooth = f.smooth
+            if src_uv:
+                for a, b in zip(f.loops, nf.loops):
+                    b[dst_uv].uv = a[src_uv].uv
         piece.free()
 
     def block(self, c, size, mat, rot_z=0.0, bevel=0.0, smooth=False, segments=2):
@@ -164,10 +171,10 @@ class Kit:
         self.end()
 
     def leaves(self, c, radii, mat, seed, bend_centre=None, axis_scale=1.0, **kw):
-        """A clump of leaf cards (foliage.clump); its normals are bent away
-        from bend_centre (default: the clump's own centre)."""
+        """A ball of leaf cards with a dark core (foliage.clump); its normals
+        are bent away from bend_centre (default: the clump's own centre)."""
         self.begin()
-        fol.clump(self.bm, V(c), radii, random.Random(seed), self.mi(mat), **kw)
+        fol.clump(self.bm, V(c), radii, random.Random(seed), self.mi(mat), core_m=self.mi(mat + "_core"), **kw)
         self.end()
         self.bends.append((V(bend_centre or c), mat, axis_scale))
 
@@ -181,7 +188,8 @@ class Kit:
         ob = bpy.data.objects.new(name, me)
         col.objects.link(ob)
         for centre, mat, axis_scale in self.bends[:1]:     # one bend per asset: its clumps share a centre
-            fol.bend_normals(ob, centre, {self.mats.index(material(mat))}, axis_scale=axis_scale)
+            fol.bend_normals(ob, centre, {self.mats.index(material(mat)), self.mats.index(material(mat + "_core"))},
+                             axis_scale=axis_scale)
         return ob
 
 
@@ -364,7 +372,7 @@ def planter(k):
     rnd = random.Random(4)
     for i in range(14):
         x, y = rnd.uniform(-0.48, 0.48), rnd.uniform(-0.18, 0.18)
-        k.blob((x, y, 0.56), (0.08, 0.08, 0.07), "hedge_bush", subdiv=1, noise=0.25, seed=i)
+        k.blob((x, y, 0.56), (0.08, 0.08, 0.07), "hedge_bush_core", subdiv=1, noise=0.25, seed=i)
         k.blob((x + 0.02, y - 0.02, 0.64), (0.035, 0.035, 0.025), rnd.choice(["flower_red", "flower_yellow"]),
                subdiv=1)
 
@@ -372,10 +380,10 @@ def planter(k):
 def hedge(k):
     """2 m of clipped box hedge: a boxy core covered in small leaf cards,
     so the top and sides read as clipped but the outline stays leafy."""
-    k.block((0, 0, 0.42), (1.9, 0.62, 0.8), "hedge_bush", bevel=0.12, segments=2, smooth=True)
-    for i in range(4):
-        k.leaves((-0.72 + i * 0.48, 0, 0.45), (0.36, 0.38, 0.44), "hedge_bush", seed=i, bend_centre=(0, 0, 0.3),
-                 leaves=60, leaf_size=(0.45, 0.65), core=0.9, up_bias=0.2, droop=0.05, min_z=0.0)
+    k.block((0, 0, 0.42), (1.9, 0.6, 0.8), "hedge_bush_core", bevel=0.12, segments=2, smooth=True)
+    for i in range(5):
+        k.leaves((-0.8 + i * 0.4, 0, 0.45), (0.3, 0.36, 0.42), "hedge_bush", seed=i, bend_centre=(0, 0, 0.3),
+                 cards=10, card_size=(1.2, 1.5), spread=(0.75, 0.95), core=0.5, up_bias=0.15, min_z=0.0, roll=0.3)
 
 
 def tree_pine(k):
@@ -413,7 +421,7 @@ def tree_birch(k):
     for i, (x, y, z, r) in enumerate(((0, 0, 6.6, 1.25), (0.95, 0.3, 5.1, 0.95), (-0.85, -0.4, 5.5, 1.0),
                                       (0.25, -0.7, 4.8, 0.85), (-0.3, 0.6, 5.0, 0.85), (0.1, 0.1, 5.8, 1.0))):
         k.leaves((x, y, z), (r, r, r * 1.15), "birch_leaf", seed=20 + i, bend_centre=(0, 0, 5.6),
-                 leaves=int(40 + 14 * r), leaf_size=(0.4, 0.6), core=0.7, droop=0.35)
+                 cards=9, card_size=(1.2, 1.5), core=0.5, roll=0.8)
 
 
 ASSETS = {

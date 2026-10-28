@@ -2,6 +2,10 @@
 ## image (white = lawn). Grass is built in square chunks around the active
 ## camera as it moves and freed again behind it, so a whole neighbourhood
 ## costs no more than the patch you can see.
+##
+## Grass painted or erased with the admin tool's grass brush is kept as a
+## list of strokes in paint_file ([[x, z, radius, add], ...]) and drawn
+## over the mask when the level loads.
 class_name GrassField
 extends Node3D
 
@@ -13,6 +17,7 @@ extends Node3D
 @export var view_distance := 75.0
 @export var max_radius := 0.0            ## no grass outside this circle around the origin (0 = no limit)
 @export var chunks_per_frame := 3        ## build budget while walking; a camera jump builds all at once
+@export_file("*.json") var paint_file := ""   ## grass brush strokes (admin tool)
 
 var _material: ShaderMaterial
 var _img: Image
@@ -20,14 +25,17 @@ var _clump: Mesh
 var _flower: Mesh
 var _chunks := {}                        # Vector2i -> Array of MultiMeshInstance3D
 var _last := Vector2(INF, INF)
+var _strokes: Array = []                 # [x, z, radius, add]
 
 
 func _ready() -> void:
 	_material = ShaderMaterial.new()
 	_material.shader = preload("res://shaders/grass.gdshader")
-	_img = mask.get_image()
-	if _img.is_compressed():
-		_img.decompress()
+	_load_mask()
+	if not paint_file.is_empty() and FileAccess.file_exists(paint_file):
+		_strokes = JSON.parse_string(FileAccess.get_file_as_string(paint_file))
+		for s: Array in _strokes:
+			_stamp(s[0], s[1], s[2], s[3])
 	_clump = _make_clump_mesh()
 	_flower = _make_flower_mesh()
 
@@ -77,14 +85,89 @@ func _build(key: Vector2i) -> void:
 	_chunks[key] = nodes
 
 
+## Mask pixel under (x, z). The mask is grey (white = lawn); grass painted
+## by hand is magenta, so it also grows outside max_radius.
+func _pixel(x: float, z: float) -> Vector2i:
+	return Vector2i(int((x + size_m / 2.0) / size_m * _img.get_width()),
+			int((z + size_m / 2.0) / size_m * _img.get_height()))
+
+
 func _lawn(x: float, z: float) -> bool:
+	var px := _pixel(x, z)
+	if px.x < 0 or px.y < 0 or px.x >= _img.get_width() or px.y >= _img.get_height():
+		return false
+	var c := _img.get_pixelv(px)
+	if c.b > 0.5 and c.g < 0.5:
+		return true
 	if max_radius > 0.0 and Vector2(x, z).length() > max_radius:
 		return false
-	var px := int((x + size_m / 2.0) / size_m * _img.get_width())
-	var py := int((z + size_m / 2.0) / size_m * _img.get_height())
-	if px < 0 or py < 0 or px >= _img.get_width() or py >= _img.get_height():
-		return false
-	return _img.get_pixel(px, py).r > 0.5
+	return c.r > 0.5
+
+
+func _load_mask() -> void:
+	_img = mask.get_image().duplicate()
+	if _img.is_compressed():
+		_img.decompress()
+	_img.convert(Image.FORMAT_RGB8)
+
+
+# ----------------------------------------------------------------------------
+# Grass brush (admin tool)
+# ----------------------------------------------------------------------------
+## Grows (add) or clears grass in a circle and saves the stroke.
+func paint(x: float, z: float, radius: float, add: bool) -> void:
+	var s := [snappedf(x, 0.01), snappedf(z, 0.01), snappedf(radius, 0.01), add]
+	_strokes.append(s)
+	_stamp(s[0], s[1], s[2], add)
+	_rebuild(Rect2(x - radius, z - radius, radius * 2.0, radius * 2.0))
+	_save_strokes()
+
+
+func stroke_count() -> int:
+	return _strokes.size()
+
+
+## Drops the strokes after the first n (undo) and redraws the grass.
+func truncate_strokes(n: int) -> void:
+	if n >= _strokes.size():
+		return
+	_strokes.resize(n)
+	_load_mask()
+	for s: Array in _strokes:
+		_stamp(s[0], s[1], s[2], s[3])
+	_rebuild(Rect2())
+	_save_strokes()
+
+
+func _stamp(x: float, z: float, radius: float, add: bool) -> void:
+	var c := _pixel(x, z)
+	var r := int(ceil(radius / size_m * _img.get_width()))
+	var colour := Color(1, 0, 1) if add else Color(0, 0, 0)
+	for py in range(maxi(c.y - r, 0), mini(c.y + r + 1, _img.get_height())):
+		for px in range(maxi(c.x - r, 0), mini(c.x + r + 1, _img.get_width())):
+			if Vector2(px - c.x, py - c.y).length() <= r:
+				_img.set_pixel(px, py, colour)
+
+
+## Frees the chunks touching area (all of them for an empty Rect2) so they
+## are built again with the new mask.
+func _rebuild(area: Rect2) -> void:
+	for key: Vector2i in _chunks.keys():
+		var r := Rect2(key.x * chunk_m, key.y * chunk_m, chunk_m, chunk_m)
+		if area.has_area() and not r.intersects(area):
+			continue
+		for n: Node in _chunks[key]:
+			n.queue_free()
+		_chunks.erase(key)
+	_last = Vector2(INF, INF)        # rebuild them all at once, next frame
+
+
+func _save_strokes() -> void:
+	if paint_file.is_empty():
+		return
+	var f := FileAccess.open(paint_file, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(_strokes))
 
 
 func _make_chunk(mesh: Mesh, x0: float, z0: float, density: float, scale_range: Vector2,

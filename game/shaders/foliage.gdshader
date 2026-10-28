@@ -1,8 +1,9 @@
-// Tree canopies, bushes and hedges built from leaf clusters (double-sided
-// leaf cards around a small core). Normals are bent outwards from the
-// canopy in Blender so the whole crown lights like one soft volume. Leaves
-// facing up are lighter and yellower, leaves facing down darker, and each
-// clump varies a little; the crown sways gently.
+// Tree canopies, bushes and hedges: balls of double-sided leaf cards, each
+// showing a painted bunch of leaves (style/leaf_*.png, cut out with alpha
+// scissor), around small untextured cores. Normals are bent outwards from
+// the crown in Blender so the whole crown lights like one soft volume.
+// Leaves facing up are lighter and yellower, leaves facing down darker,
+// and each clump varies a little; the crown sways gently.
 shader_type spatial;
 render_mode cull_disabled;
 
@@ -10,6 +11,9 @@ uniform vec4 tint : source_color = vec4(0.36, 0.6, 0.29, 1.0);
 uniform vec3 top_tint : source_color = vec3(1.12, 1.12, 0.92);   // multiplies the colour on top
 uniform vec3 under_tint : source_color = vec3(0.7, 0.77, 0.77);  // ... and underneath
 uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform bool use_texture = false;   // leaf cards; cores and spruce needles are untextured
+uniform sampler2D leaf_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_disable;
+uniform float alpha_cut : hint_range(0.0, 1.0) = 0.5;
 uniform float variation = 0.12;
 uniform float roughness : hint_range(0.0, 1.0) = 0.85;
 uniform float specular : hint_range(0.0, 1.0) = 0.15;
@@ -36,7 +40,17 @@ void fragment() {
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
 	float n = texture(noise_tex, v_world.xz * 0.35 + v_world.y * 0.2).r;
 	vec3 shade = mix(under_tint, top_tint, smoothstep(-0.6, 0.8, v_up));
-	ALBEDO = tint.rgb * shade * (1.0 + variation * (n - 0.5) * 2.0);
+	vec4 leaf = vec4(1.0);
+	if (use_texture) {
+		leaf = texture(leaf_tex, UV);
+		// keep the leaves' coverage in the smaller mipmaps (far trees)
+		vec2 px = UV * vec2(textureSize(leaf_tex, 0));
+		float mip = max(0.0, 0.5 * log2(max(dot(dFdx(px), dFdx(px)), dot(dFdy(px), dFdy(px)))));
+		leaf.a *= 1.0 + mip * 0.25;
+	}
+	ALBEDO = tint.rgb * shade * leaf.rgb * (1.0 + variation * (n - 0.5) * 2.0);
+	ALPHA = leaf.a;
+	ALPHA_SCISSOR_THRESHOLD = alpha_cut;
 	ROUGHNESS = roughness;
 	SPECULAR = specular;
 	// a little light through the leaves when the sun is behind them
