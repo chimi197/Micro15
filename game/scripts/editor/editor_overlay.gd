@@ -166,8 +166,8 @@ func show_pins(pins: Array) -> void:
 		l.text = "#%d %s" % [pin.id, pin.note] if not String(pin.note).is_empty() else "#%d" % pin.id
 		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		l.fixed_size = true
-		l.pixel_size = 0.001
-		l.font_size = 30
+		l.pixel_size = 0.0008
+		l.font_size = 28
 		l.outline_size = 10
 		l.outline_modulate = Color(0, 0, 0, 0.75)
 		l.position.y = 2.8

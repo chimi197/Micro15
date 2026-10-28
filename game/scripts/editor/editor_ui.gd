@@ -93,7 +93,7 @@ var day_length: HSlider
 func build(admin: Node) -> void:
 	editor = admin
 	theme = EditorTheme.make()
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var img := Image.create(96, 96, false, Image.FORMAT_RGBA8)
 	img.fill(Color(1, 1, 1, 0.06))
@@ -201,8 +201,8 @@ func _spacer(w: float) -> Control:
 
 
 func show_tool(tool: String) -> void:
-	if tool_buttons.has(tool):
-		tool_buttons[tool].set_pressed_no_signal(true)
+	for t: String in tool_buttons:
+		tool_buttons[t].set_pressed_no_signal(t == tool)
 	for p: String in pages:
 		pages[p].visible = p == tool
 	left_panel.visible = pages.has(tool)
@@ -216,9 +216,11 @@ func show_tool(tool: String) -> void:
 # ----------------------------------------------------------------------------
 func _build_left_panel() -> void:
 	left_panel = PanelContainer.new()
-	left_panel.position = Vector2(8, 64)
-	left_panel.custom_minimum_size = Vector2(330, 0)
+	left_panel.anchor_top = 0.0
 	left_panel.anchor_bottom = 1.0
+	left_panel.offset_left = 8
+	left_panel.offset_right = 338
+	left_panel.offset_top = 64
 	left_panel.offset_bottom = -56
 	add_child(left_panel)
 	var stack := VBoxContainer.new()
@@ -685,7 +687,7 @@ func _build_inspector() -> void:
 	inspector = PanelContainer.new()
 	inspector.anchor_left = 1.0
 	inspector.anchor_right = 1.0
-	inspector.offset_left = -308
+	inspector.offset_left = -378
 	inspector.offset_right = -8
 	inspector.offset_top = 64
 	inspector.visible = false
@@ -778,7 +780,7 @@ func _build_map() -> void:
 	map_panel.anchor_right = 1.0
 	map_panel.anchor_top = 1.0
 	map_panel.anchor_bottom = 1.0
-	map_panel.offset_left = -348
+	map_panel.offset_left = -378
 	map_panel.offset_right = -8
 	map_panel.offset_top = -404
 	map_panel.offset_bottom = -56
@@ -790,7 +792,7 @@ func _build_map() -> void:
 	head.add_child(EditorTheme.heading("Map  (click to fly there)"))
 	v.add_child(head)
 	minimap = EditorMinimap.new()
-	minimap.custom_minimum_size = Vector2(320, 300)
+	minimap.custom_minimum_size = Vector2(350, 300)
 	minimap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	minimap.mouse_filter = Control.MOUSE_FILTER_STOP
 	minimap.clicked.connect(editor.fly_over)
