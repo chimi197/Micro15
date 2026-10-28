@@ -23,13 +23,14 @@ families, palette, detail density and how to make new assets) are in
   restrained surface variation (large-scale mottling, paving seams, a darker
   band at the foot of walls), and a coordinated palette of muted pastels
   replaces the raw model colours.
-* Trees, bushes and hedges are balls of leaf cards around small dark cores
-  with normals bent outwards (`blender/foliage.py`). Each card shows a
-  painted patch of hanging leaves (`game/style/leaf_*.png`, made by
-  `tools/make_leaf_texture.py`), cut out with alpha so crowns have leafy,
-  scalloped outlines; cards seen edge-on thin out instead of showing as
-  streaks. Spruces are drooping, faceted tiers; benches and lamps have
-  chunky, chamfered parts.
+* Trees, bushes and hedges are modelled leaf by leaf (`blender/trees.py`):
+  a skeleton of tapered branches forking into twigs, and clusters of
+  individual folded leaves at the twig ends, darker deep inside each
+  cluster. Leaf normals lean out of the crown, so it lights as one soft
+  volume while every leaf still catches the light a little differently;
+  leaves flutter in the wind. Map trees also come in a lighter "far"
+  version (fewer, bigger leaves) that takes over at 70 m. Benches and
+  lamps have chunky, chamfered parts.
 * A day cycle (`scripts/sun_cycle.gd`, the `SunCycle` node) moves the sun
   along its real path over Satu Mare for the local clock time and colours
   the sunlight, sky, ambient light and haze to match: warm and low in the

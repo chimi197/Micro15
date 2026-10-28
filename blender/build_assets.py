@@ -7,6 +7,7 @@ bollards, bike racks, planters, hedges, pines and birches).
 Every asset is one object standing on the origin, facing -Y (the front in
 Godot is +Z), 1 unit = 1 metre. Materials are named like the rest of the
 world (C3_*; names containing leaf/bush get the foliage shader in Godot).
+The hedge, spruce and birch are modelled leaf by leaf with trees.py.
 Writes game/assets/source/street_kit.glb; game/tools/make_assets.gd then
 turns each object into a placeable scene in game/assets/.
 
@@ -21,14 +22,14 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-import foliage as fol
+import trees
 
 COLOURS = {
     "fence_green": "#3f7a4a", "metal_dark": "#3a3f47", "metal_grey": "#8e969c", "wood": "#b77a45",
     "concrete": "#c9c4b8", "concrete_dark": "#a8a397", "bin_green": "#3d8a52", "container": "#2f6e45",
     "rubber": "#2a2b2e", "red": "#d0503c", "yellow": "#f0c040", "blue": "#3f78c8", "white": "#f2f0ea",
     "soil": "#6b4b34", "flower_red": "#e0475a", "flower_yellow": "#f6d04d", "trunk": "#7a5a43",
-    "birch_bark": "#ece8df", "birch_mark": "#3d3a37", "pine_leaf": "#2f6a46", "birch_leaf": "#8cc65a", "hedge_bush": "#4f8f3e",
+    "birch_bark": "#ece8df", "birch_mark": "#3d3a37", "pine_leaf": "#2f6a46", "bark": "#7a5034", "plant": "#4f8f3e", "birch_leaf": "#8cc65a", "hedge_bush": "#4f8f3e",
     "chess_dark": "#5a5650",
 }
 
@@ -45,8 +46,8 @@ def hex_rgba(h):
 
 
 def material(name):
-    """C3_<name>; a "<leaf>_core" material (the untextured inside of a leaf
-    ball) takes its leaf's colour."""
+    """C3_<name>; a "<leaf>_core" material (the inner leaves of a cluster)
+    takes its leaf's colour (the game darkens it)."""
     m = bpy.data.materials.get("C3_" + name)
     if m is None:
         m = bpy.data.materials.new("C3_" + name)
@@ -66,7 +67,6 @@ class Kit:
     def __init__(self):
         self.bm = bmesh.new()
         self.mats = []
-        self.bends = []          # (centre, material, axis_scale) for foliage normals
 
     def mi(self, name):
         m = material(name)
@@ -170,13 +170,10 @@ class Kit:
         self._tag(self.new_faces(), mat, True)
         self.end()
 
-    def leaves(self, c, radii, mat, seed, bend_centre=None, axis_scale=1.0, **kw):
-        """A ball of leaf cards with a dark core (foliage.clump); its normals
-        are bent away from bend_centre (default: the clump's own centre)."""
-        self.begin()
-        fol.clump(self.bm, V(c), radii, random.Random(seed), self.mi(mat), core_m=self.mi(mat + "_core"), **kw)
-        self.end()
-        self.bends.append((V(bend_centre or c), mat, axis_scale))
+    def leaf(self, base, axis, normal, length, width, mat):
+        """One small modelled leaf (trees.add_leaf), for potted plants."""
+        trees.add_leaf(self.bm, None, V(base), V(axis).normalized(), V(normal).normalized(), length, width,
+                       self.mi(mat))
 
     def to_object(self, name, col):
         bmesh.ops.remove_doubles(self.bm, verts=self.bm.verts, dist=1e-5)
@@ -187,9 +184,6 @@ class Kit:
             me.materials.append(m)
         ob = bpy.data.objects.new(name, me)
         col.objects.link(ob)
-        for centre, mat, axis_scale in self.bends[:1]:     # one bend per asset: its clumps share a centre
-            fol.bend_normals(ob, centre, {self.mats.index(material(mat)), self.mats.index(material(mat + "_core"))},
-                             axis_scale=axis_scale)
         return ob
 
 
@@ -372,64 +366,37 @@ def planter(k):
     rnd = random.Random(4)
     for i in range(14):
         x, y = rnd.uniform(-0.48, 0.48), rnd.uniform(-0.18, 0.18)
-        k.blob((x, y, 0.56), (0.08, 0.08, 0.07), "hedge_bush_core", subdiv=1, noise=0.25, seed=i)
-        k.blob((x + 0.02, y - 0.02, 0.64), (0.035, 0.035, 0.025), rnd.choice(["flower_red", "flower_yellow"]),
-               subdiv=1)
+        top = V(x, y, rnd.uniform(0.6, 0.7))
+        k.rod((x, y, 0.5), top, 0.006, "plant", seg=4, caps=False)
+        for j in range(6):                                   # leaves around the stem
+            a = rnd.uniform(0, math.tau)
+            z = rnd.uniform(0.52, top.z - 0.03)
+            d = V(math.cos(a), math.sin(a), rnd.uniform(0.1, 0.5))
+            k.leaf((x, y, z), d, V(0, 0, 1) - d * d.z, rnd.uniform(0.07, 0.1), 0.045, "plant")
+        k.blob(top, (0.035, 0.035, 0.025), rnd.choice(["flower_red", "flower_yellow"]), subdiv=1)
 
 
-def hedge(k):
-    """2 m of clipped box hedge: a boxy core covered in small leaf cards,
-    so the top and sides read as clipped but the outline stays leafy."""
-    k.block((0, 0, 0.4), (1.8, 0.5, 0.74), "hedge_bush_core", bevel=0.12, segments=2, smooth=True)
-    for i in range(6):
-        k.leaves((-0.8 + i * 0.32, 0, 0.42), (0.36, 0.4, 0.46), "hedge_bush", seed=i, bend_centre=(0, 0, 0.3),
-                 cards=12, card_size=(0.9, 1.15), spread=(0.85, 1.0), core=0.0, up_bias=0.15, min_z=0.0, roll=0.3)
+def hedge(P):
+    """2 m of clipped hedge, leaf by leaf (trees.hedge)."""
+    trees.hedge(P, 7)
 
 
-def tree_pine(k):
-    """Blue spruce, common in the yards between the blocks: stacked,
-    drooping, star-shaped tiers with flat facets."""
-    k.rod((0, 0, 0), (0, 0, 1.4), 0.15, "trunk", seg=10, r1=0.1)
-    H = 7.5
-    tiers = 7
-    rnd = random.Random(11)
-    k.begin()
-    m = k.mi("pine_leaf")
-    for i in range(tiers):
-        t = i / tiers
-        z0 = 1.0 + t * (H - 2.0)
-        r = 2.1 * (1 - t) ** 1.1 + 0.3
-        fol.spruce_tier(k.bm, z0, r, 1.5 - t * 0.5, rnd, m, points=9 - i // 2, droop=0.5 * (1 - t) + 0.15)
-    k.end()
-    top = 1.0 + (tiers - 1) / tiers * (H - 2.0) + 1.5 - (tiers - 1) / tiers * 0.5
-    k.rod((0, 0, top - 0.3), (0, 0, top + 0.5), 0.06, "pine_leaf", seg=6, r1=0.005)
+def tree_pine(P):
+    """Blue spruce, common in the yards between the blocks (trees.spruce)."""
+    trees.spruce(P, 11)
 
 
-def tree_birch(k):
-    """Birch: thin white trunk, a few forking limbs and loose, light leaf
-    clumps at their ends."""
-    k.pipe([(0, 0, 0), (0.05, 0.02, 2.5), (0.0, 0.0, 5.0), (-0.1, 0.05, 7.0)], 0.13, "birch_bark", seg=10,
-           r1=0.05)
-    k.rod((0.03, 0.01, 3.4), (0.9, 0.3, 4.6), 0.05, "birch_bark", seg=7, r1=0.025)
-    k.rod((0.0, 0.0, 4.0), (-0.8, -0.4, 5.2), 0.05, "birch_bark", seg=7, r1=0.025)
-    k.rod((0.0, 0.0, 4.4), (0.25, -0.65, 4.9), 0.04, "birch_bark", seg=6, r1=0.02)
-    rnd = random.Random(3)
-    for z in (0.5, 1.1, 1.6, 2.3, 2.9, 3.6):          # the dark bands that make it read as a birch
-        r = 0.13 - 0.08 * z / 7.0 + 0.006
-        k.rod((0.05 * z / 2.5, 0.02 * z / 2.5, z), (0.05 * z / 2.5, 0.02 * z / 2.5, z + rnd.uniform(0.05, 0.1)), r,
-              "birch_mark", seg=10)
-    for i, (x, y, z, r) in enumerate(((0, 0, 6.6, 1.25), (0.95, 0.3, 5.1, 0.95), (-0.85, -0.4, 5.5, 1.0),
-                                      (0.25, -0.7, 4.8, 0.85), (-0.3, 0.6, 5.0, 0.85), (0.1, 0.1, 5.8, 1.0))):
-        k.leaves((x, y, z), (r, r, r * 1.15), "birch_leaf", seed=20 + i, bend_centre=(0, 0, 5.6),
-                 cards=16, roll=0.8)
+def tree_birch(P):
+    """Birch: white trunk with dark marks, small hanging leaves (trees.birch)."""
+    trees.birch(P, 3)
 
 
 ASSETS = {
     "fence_metal": fence_metal, "fence_low": fence_low, "bench_wood": bench_wood, "trash_bin": trash_bin,
     "dumpster": dumpster, "carpet_beater": carpet_beater, "swing": swing, "slide": slide,
     "chess_table": chess_table, "bollard": bollard, "bike_rack": bike_rack, "planter": planter,
-    "hedge": hedge, "tree_pine": tree_pine, "tree_birch": tree_birch,
 }
+PLANTS = {"hedge": hedge, "tree_pine": tree_pine, "tree_birch": tree_birch}    # built with trees.Plant
 
 
 def build(scn):
@@ -440,6 +407,10 @@ def build(scn):
         fn(k)
         ob = k.to_object(name, col)
         objs.append(ob)
+    for name, fn in PLANTS.items():
+        P = trees.Plant(material)
+        fn(P)
+        objs.append(P.finish(name, col))
     return objs
 
 

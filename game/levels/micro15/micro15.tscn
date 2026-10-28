@@ -98,11 +98,13 @@ library = ExtResource("9_props")
 data = "res://levels/micro15/props.json"
 format = "props"
 removed_file = "res://levels/micro15/removed_props.json"
+cell = 32.0
+far_from = 70.0
 view_ranges = {
-"tree_a": 700.0,
-"tree_b": 700.0,
-"tree_c": 700.0,
-"poplar": 700.0,
+"tree_a": 500.0,
+"tree_b": 500.0,
+"tree_c": 500.0,
+"poplar": 500.0,
 "bush_a": 220.0,
 "bush_b": 220.0,
 "lamp": 250.0,

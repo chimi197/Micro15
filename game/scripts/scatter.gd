@@ -7,6 +7,11 @@
 ## [x, y, z, yaw, sx, sy, sz, r, g, b] for "details" (the colour tints the
 ## materials listed in tinted) and [x, z, yaw, scale] for "props".
 ##
+## A prototype with a "<name>_far" mesh in the library (trees, bushes)
+## draws its detailed mesh up to far_from metres and the lighter far one
+## from there on. Distances count from the middle of a cell, so props use
+## small cells.
+##
 ## Props can be taken out with the admin tool (remove_near); they are
 ## listed in removed_file ({prototype: [[x, z], ...]}) and left out from
 ## then on.
@@ -23,6 +28,7 @@ extends Node3D
 @export var no_shadows: PackedStringArray ## prototypes that cast no shadow
 @export var tinted: PackedStringArray     ## materials that take the per-entry colour
 @export var solid := {}                   ## prototype: trunk radius of a 3 m collision cylinder
+@export var far_from := 70.0              ## where "<name>_far" meshes take over
 @export_file("*.json") var removed_file := ""   ## props taken out with the admin tool
 
 var _built := false
@@ -60,7 +66,13 @@ func _build() -> void:
 				var basis := Basis(Vector3.UP, e[2]).scaled(Vector3.ONE * e[3])
 				placements.append([Transform3D(basis, Vector3(e[0], 0.0, e[1])), Color.WHITE])
 		var first := _items.size()
-		_scatter(proto, meshes[proto], placements, view_ranges.get(proto, default_range), not proto in no_shadows)
+		var view_range: float = view_ranges.get(proto, default_range)
+		var shadows := not proto in no_shadows
+		if meshes.has(proto + "_far"):
+			_scatter(proto, meshes[proto], placements, minf(far_from, view_range), shadows)
+			_scatter(proto, meshes[proto + "_far"], placements, view_range, shadows, far_from)
+		else:
+			_scatter(proto, meshes[proto], placements, view_range, shadows)
 		if solid.has(proto) and not Engine.is_editor_hint():
 			var cyl := CylinderShape3D.new()
 			cyl.radius = solid[proto]
@@ -92,7 +104,8 @@ func _shape_at(bodies: Dictionary, p: Vector3) -> CollisionShape3D:
 
 
 ## One MultiMesh per cell; each placement is [Transform3D, Color].
-func _scatter(proto: String, mesh: Mesh, placements: Array, view_range: float, shadows: bool) -> void:
+func _scatter(proto: String, mesh: Mesh, placements: Array, view_range: float, shadows: bool,
+		view_from := 0.0) -> void:
 	var cells := {}
 	for p: Array in placements:
 		var key := _cell_of(p[0].origin)
@@ -113,7 +126,10 @@ func _scatter(proto: String, mesh: Mesh, placements: Array, view_range: float, s
 				_items.append([proto, mm, i, items[i][0], null])
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
+		mmi.visibility_range_begin = view_from
 		mmi.visibility_range_end = view_range
+		mmi.visibility_range_begin_margin = 4.0 if view_from > 0.0 else 0.0
+		mmi.visibility_range_end_margin = 4.0
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows \
 				else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
@@ -146,10 +162,12 @@ func remove_near(p: Vector3, radius := 1.5) -> Array:
 	if best < 0:
 		return []
 	var it: Array = _items[best]
-	it[1].set_instance_transform(it[2], Transform3D(Basis.from_scale(Vector3.ZERO), it[3].origin))
-	if it[4]:
-		it[4].disabled = true
 	var o: Vector3 = it[3].origin
+	for other: Array in _items:              # the detailed and the far mesh
+		if other[0] == it[0] and other[3].origin.is_equal_approx(o):
+			other[1].set_instance_transform(other[2], Transform3D(Basis.from_scale(Vector3.ZERO), o))
+			if other[4]:
+				other[4].disabled = true
 	if not _removed.has(it[0]):
 		_removed[it[0]] = []
 	_removed[it[0]].append([snappedf(o.x, 0.01), snappedf(o.z, 0.01)])

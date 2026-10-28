@@ -39,13 +39,15 @@ colours and gameplay.
 | --- | --- | --- | --- |
 | Buildings, balconies, slabs, steps | straight, blocky, clear storey rhythm | hard, flat faces | flat per face |
 | Street furniture (benches, bins, fences, lamps, playground) | chunky, slightly thick parts | small chamfers (1–2 cm) on corners that catch light; round tubes stay round | smooth on round parts, flat on boards |
-| Trees and bushes | ragged, asymmetric clusters of leaf clumps; tapered, forked trunks | leaf cards, no smooth blobs | normals bent outwards from the canopy (one soft volume) |
+| Trees and bushes | ragged, asymmetric clusters of leaves on forking, tapered branches | every leaf modelled, no cards or blobs | normals bent outwards from the canopy (one soft volume), each leaf keeping some of its own |
 | Conifers | stacked, drooping tiers with uneven points | faceted | flat per facet |
 | Character | smooth, as modelled | — | smooth |
 
-Triangle budgets: about 2,000 for a tree or bush, 500–1,500 for a street
-prop, and buildings as they are. Small details stop drawing with distance
-(visibility ranges), so they don't need low-detail versions.
+Triangle budgets: up to about 20,000 for a detailed tree (every leaf is
+modelled) with a far version of about 2,500 that takes over at 70 m,
+500–1,500 for a street prop, and buildings as they are. Small details stop
+drawing with distance (visibility ranges), so they don't need low-detail
+versions.
 
 ### Light and shading (`game/shaders/soft_light.gdshaderinc`)
 
@@ -88,7 +90,7 @@ comes from the palette below, or from the model.
 | glass | 0.08 | 0.6 | 0 | reflects the sky |
 | fabric / curtains | 1.0 | 0.1 | 2% | — |
 | roof | 0.95 | 0.15 | 8% | — |
-| foliage | 0.85 | 0.15 | per-clump shade | double-sided leaf cards |
+| foliage | 0.85 | 0.15 | per-leaf shade | double-sided leaves, flutter |
 | skin | 0.65 | 0.3 | 0 | character |
 | hair | 0.55 | 0.35 | 0 | character |
 | cloth | 0.95 | 0.15 | 0 | character |
@@ -107,13 +109,11 @@ on small things only (playground, shop bands, flowers, cones).
   kerbs. Lawns are a yellow
   green around 45–50%, with patches.
 - **Foliage:** three greens per tree kind (shadow, mid, top), going
-  yellower towards the tops. Leaf cards carry a greyscale painted patch of
-  hanging leaves (`style/leaf_broad.png` for street trees, poplars and
-  bushes, `leaf_small.png` for birches and hedges; repaint with
-  `tools/make_leaf_texture.py`), tinted per tree kind in the foliage
-  shader and cut out with alpha scissor. Each leaf has a faint darker
-  edge and a lighter upper half; the dark core inside each clump is the
-  same green, 25% darker. Spruce is a blue green and stays darker than
+  yellower towards the tops. Every leaf is modelled (`blender/trees.py`):
+  an almond outline folded along the midrib with a drooping tip, about
+  40 cm on street trees, 24 cm on birches and bushes, 16 cm on hedges.
+  Each leaf gets its own shade (UV.x) and is a little darker at its base;
+  inner leaves use the "<leaf>_core" material, 25% darker. Spruce is a blue green and stays darker than
   the lawn. Birch is a lighter yellow green.
 - **Metal:** painted metal uses the Romanian municipal green (#3f6e4a) or
   dark grey. Bare metal is a light grey.

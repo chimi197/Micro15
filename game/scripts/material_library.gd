@@ -90,13 +90,10 @@ const SHADERS := {
 	"lawn": preload("res://shaders/lawn.gdshader"),
 }
 const NOISE := preload("res://style/noise.tres")
-## Leaf-card materials and the painted leaf bunch they show (other foliage,
-## such as "<leaf>_core" and the spruce, is untextured)
-const LEAF_TEXTURES := {
-	"C3_leaf_a": "broad", "C3_leaf_b": "broad", "C3_leaf_c": "broad", "C3_poplar": "broad", "C3_bush": "broad",
-	"C3_birch_leaf": "small", "C3_hedge_bush": "small",
-}
-const LEAVES := {"broad": preload("res://style/leaf_broad.png"), "small": preload("res://style/leaf_small.png")}
+## Foliage modelled leaf by leaf (blender/trees.py): UV holds a shade per
+## leaf. Other foliage (balcony plants, planter shrubs) has no such UVs.
+const MODELLED_LEAVES := ["C3_leaf_a", "C3_leaf_b", "C3_leaf_c", "C3_poplar", "C3_bush", "C3_hedge_bush",
+		"C3_pine_leaf", "C3_birch_leaf"]
 
 
 static func family_of(material_name: String) -> String:
@@ -132,7 +129,8 @@ static func make(material_name: String, model_colour: Color, instance_tint := fa
 				mat.set_shader_parameter(key, fam[key])
 	if mat.shader == SHADERS.stylized:
 		mat.set_shader_parameter("instance_tint", instance_tint)
-	if LEAF_TEXTURES.has(material_name):
-		mat.set_shader_parameter("use_texture", true)
-		mat.set_shader_parameter("leaf_tex", LEAVES[LEAF_TEXTURES[material_name]])
+	if mat.shader == SHADERS.foliage:
+		var modelled := material_name.trim_suffix("_core") in MODELLED_LEAVES
+		mat.set_shader_parameter("leaf_shade", 0.22 if modelled else 0.0)
+		mat.set_shader_parameter("flutter", 0.015 if modelled else 0.0)
 	return mat

@@ -12,7 +12,8 @@ Writes into game/levels/micro15/:
     ground.glb      lawn base, land use areas, roads, sidewalks, paths
     details.glb     building detail prototypes (local frame: width along X,
                     outward along -Y, up Z, origin on the wall at the bottom)
-    props.glb       trees, poplars, bushes, lamps, benches
+    props.glb       trees, poplars, bushes (each also as a lighter "_far"
+                    version for distance), lamps, benches
     details.json    {prototype: [[x, y, z, yaw, sx, sy, sz, r, g, b], ...]}
     props.json      {prop: [[x, z, yaw, scale], ...]}
 All positions are in Godot space (x, up, z = -north), centred on MAP_CENTRE.
@@ -363,8 +364,6 @@ def proto_entrance(B):
     B.box(w.p(1.5, 0, 0.6), w.d, w.n, 2.0, 1.2, 0.0, 0.15, st)
     B.box(w.p(1.5, 0, 0.45), w.d, w.n, 2.0, 0.9, 0.15, 0.3, st)
     B.box(w.p(1.5, 0, 0.3), w.d, w.n, 2.0, 0.6, 0.3, 0.45, st)
-    for s in (0.55, 2.45):
-        B.box(w.p(s, 0, 0.9), w.d, w.n, 0.04, 1.6, 0.45, 1.4, B.mi("metal"))
     B.face([w.p(1.0, 3.3, 0.01), w.p(2.0, 3.3, 0.01), w.p(2.0, 3.65, 0.01), w.p(1.0, 3.65, 0.01)], B.mi("frame_white"), w.n)
 
 
@@ -531,10 +530,14 @@ def run(root, part="all"):
         export(scn, os.path.join(out, "details.glb"), objs)
         scn = fresh("MapProps")
         pc = scn.collection
-        lib = [c3.make_tree("tree_a", pc, 1, "leaf_a", 4.4, 3.2, 8), c3.make_tree("tree_b", pc, 2, "leaf_b", 5.0, 3.7, 10),
-               c3.make_tree("tree_c", pc, 3, "leaf_c", 3.8, 2.7, 7), c3.make_poplar("poplar", pc, 4),
-               c3.make_bush("bush_a", pc, 5), c3.make_bush("bush_b", pc, 6, flowers=True),
-               c3.make_lamp(pc), c3.make_bench(pc)]
+        lib = [c3.make_lamp(pc), c3.make_bench(pc)]
+        for far in (False, True):              # detailed, and "_far" for distance (Scatter switches)
+            sfx = "_far" if far else ""
+            lib += [c3.make_tree("tree_a" + sfx, pc, 1, "leaf_a", 4.4, 3.2, 5, far),
+                    c3.make_tree("tree_b" + sfx, pc, 2, "leaf_b", 5.0, 3.7, 6, far),
+                    c3.make_tree("tree_c" + sfx, pc, 3, "leaf_c", 3.8, 2.7, 4, far),
+                    c3.make_poplar("poplar" + sfx, pc, 4, far),
+                    c3.make_bush("bush_a" + sfx, pc, 5, far=far), c3.make_bush("bush_b" + sfx, pc, 6, True, far)]
         export(scn, os.path.join(out, "props.glb"), lib)
         res["details_protos"] = len(objs)
 
