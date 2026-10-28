@@ -6,6 +6,8 @@
 ## WASD to move, mouse to look, Shift to run, Space to jump and Space again
 ## in the air for a double jump, Ctrl or C to crouch, left click or F to
 ## punch (jab, then a cross if pressed again quickly), Esc frees the mouse.
+## Kerbs, single steps and stairs up to STEP_HEIGHT are walked up without a
+## jump (the body and camera glide onto them instead of popping).
 ##
 ## Walk, run and crouch-walk cycles are sped up or slowed down to match the
 ## ground speed and switched at the same point of the stride. The body
@@ -21,6 +23,7 @@ const STRIDES := ["walk", "run", "crouch_walk"]
 const COYOTE_TIME := 0.15                ## seconds off the ground before the fall pose starts
 const STAND_HEIGHT := 1.5
 const CROUCH_HEIGHT := 1.0
+const STEP_HEIGHT := 0.35                ## kerbs (0.12 m) and stairs are climbed without jumping
 
 @export var walk_speed := 1.1
 @export var run_speed := 3.6
@@ -54,6 +57,9 @@ var _combo_window := 0.0
 var _lean := Vector2.ZERO                # forward pitch, side roll
 var _last_yaw := 0.0
 var _last_speed := 0.0
+var _step_offset := Vector3.ZERO         # how far the model and camera still trail a step up
+var _model_at := Vector3.ZERO
+var _pivot_at := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -67,6 +73,9 @@ func _ready() -> void:
 	_add_hair_springs()
 	wear(info.outfit)
 	spring_arm.add_excluded_object(get_rid())
+	floor_snap_length = STEP_HEIGHT       # follows the ground down off kerbs, too
+	_model_at = body_mesh.position
+	_pivot_at = camera_pivot.position
 
 
 ## Shows the listed garments (node names from kid.json) and hides the rest,
@@ -154,9 +163,43 @@ func _physics_process(delta: float) -> void:
 	velocity.z = move_toward(velocity.z, target.z, accel * delta)
 	if dir.length() > 0.1:
 		body_mesh.rotation.y = lerp_angle(body_mesh.rotation.y, atan2(dir.x, dir.z), turn_speed * delta)
+	_step_up(delta)
 	move_and_slide()
+	_step_offset *= exp(-14.0 * delta)
+	body_mesh.position = _model_at + _step_offset
+	camera_pivot.position = _pivot_at + _step_offset
 	_animate(delta, event)
 	_lean_body(delta)
+
+
+## Walking into a low step (a kerb, a stair): lifts the body onto it when
+## there is a floor up to STEP_HEIGHT higher just ahead and room to stand.
+func _step_up(delta: float) -> void:
+	var motion := Vector3(velocity.x, 0.0, velocity.z) * delta
+	if not is_on_floor() or velocity.y > 0.0 or motion.length() < 0.0005:
+		return
+	if not test_move(global_transform, motion):
+		return                                    # nothing in the way
+	var lift := Vector3.UP * STEP_HEIGHT
+	if test_move(global_transform, lift):
+		return                                    # no headroom
+	var probe := motion.normalized() * ((collision.shape as CapsuleShape3D).radius + 0.05)
+	var raised := global_transform.translated(lift)
+	if test_move(raised, probe):
+		return                                    # a wall, not a step
+	var landing := KinematicCollision3D.new()
+	if not test_move(raised.translated(probe), -lift, landing):
+		return                                    # nothing to stand on
+	if landing.get_normal().angle_to(Vector3.UP) > floor_max_angle:
+		return
+	var rise := STEP_HEIGHT - landing.get_travel().length()
+	if rise <= 0.01:
+		return
+	# onto the step: far enough in that the round bottom of the capsule
+	# stands on its top rather than on its edge
+	var move := probe + Vector3.UP * (rise + 0.01)
+	global_position += move
+	_step_offset -= move
 
 
 ## Admin noclip: fly where the camera looks, through walls. Space up,

@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_brq1l"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/win.res" id="2_ybkt1"]
+
+[node name="win" type="StaticBody3D" unique_id=1700014800]
+script = ExtResource("1_brq1l")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1189735294]
+mesh = ExtResource("2_ybkt1")

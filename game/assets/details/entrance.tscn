@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_ghnvl"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/entrance.res" id="2_u2p3t"]
+[ext_resource type="Shape3D" path="res://assets/meshes/entrance_shape.res" id="3_oluqv"]
+
+[node name="entrance" type="StaticBody3D" unique_id=1630998986]
+script = ExtResource("1_ghnvl")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1275821123]
+mesh = ExtResource("2_u2p3t")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1292774568]
+shape = ExtResource("3_oluqv")

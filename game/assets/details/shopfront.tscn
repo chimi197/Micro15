@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_iiy2f"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/shopfront.res" id="2_0dw4m"]
+
+[node name="shopfront" type="StaticBody3D" unique_id=1627618776]
+script = ExtResource("1_iiy2f")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=369292147]
+mesh = ExtResource("2_0dw4m")

@@ -35,8 +35,9 @@ families, palette, detail density and how to make new assets) are in
   along its real path over Satu Mare for the local clock time and colours
   the sunlight, sky, ambient light and haze to match: warm and low in the
   morning and evening, a soft blue moonlight at night. It starts paused at
-  12:00 (the usual look); the admin tool changes the time or runs the
-  clock.
+  12:00 (the usual look); the map editor's Sky & light panel changes the
+  time, runs the clock and changes the whole look (presets, sky, clouds,
+  fog, exposure), which can be saved as the level's look.
 
 | 8:00 | 20:24 | 23:30 |
 | --- | --- | --- |
@@ -68,40 +69,56 @@ Everything is a real scene that opens and can be edited in the Godot editor:
   (the glTF scenes, styled by `scripts/styled_model.gd`, in the editor
   too); `Details` and `Props` (`scripts/scatter.gd`: the repeated windows,
   balconies, trees and lamps drawn with MultiMeshes, visible in the editor);
-  `Grass`; invisible `Bounds`; `Placed` (things placed with the admin tool,
+  `Grass`; invisible `Bounds`; `Placed` (things placed with the map editor,
   `levels/micro15/placed.tscn`); `InkOutline` (`style/ink_outline.tres`,
-  hidden; the admin tool shows it for comparison); and
+  hidden; F2 shows it for comparison); and
   the `Player`.
 * `player/player.tscn`: collision capsule, the boy (`characters/kid/kid.glb`)
   and the camera on a spring arm; `scripts/player.gd` drives it. Inputs are
   in Project Settings → Input Map.
-* `assets/*.tscn`: one scene per placeable thing, with collision. Drag them
-  into a level in the editor, or place them in game with the admin tool.
+* `assets/*.tscn`: one scene per placeable thing, with collision, and
+  `assets/details/*.tscn` for the building details (windows, balconies,
+  air conditioners...). Drag them into a level in the editor, or place them
+  in game with the map editor.
 
-### Admin and modding tool (`scripts/admin.gd`)
+### Map editor (`scripts/admin.gd`, `scripts/editor/`)
+
+![The map editor](docs/renders/editor_select.png)
 
 Only there when the game runs from the Godot editor (never in exported
-builds). F1 opens the admin bar:
+builds). **F1** opens it (and goes back to the game): a free camera, a tool
+bar along the top, the tool's panel on the left, the selection's inspector
+and the map on the right, and the coordinates along the bottom. The Keys
+button lists every shortcut.
 
-| Key | Action |
+| Tool (key) | What it does |
 | --- | --- |
-| B | build mode: pick an asset from the list, left click places it, wheel or Q/E turns it, Shift+wheel or Z/X scales it, G snaps to a 0.5 m grid, Delete removes the thing under the mouse (placed, or a map tree, bush, lamp or bench), middle click copies it, Ctrl+Z undoes; hold the right mouse button to look around |
-| B, then **[ remove tool ]** | left click removes what is under the mouse: things you placed, or the map's trees, poplars, bushes, lamps and benches (a red ring shows its reach); Ctrl+Z puts it back |
-| B, then **[ grass brush ]** | hold left to grow 3D grass, Shift+left to clear it, wheel or Z/X for the brush size (the ring); Ctrl+Z undoes a whole stroke |
-| N | noclip: fly through everything (Space up, Ctrl down, Shift fast) |
-| T | teleport to the point under the mouse (or the screen centre) |
-| [ ] | movement speed down / up |
-| , . | time of day back / on by half an hour (moves the sun) |
-| / | day cycle running / stopped (Shift+, . makes a day slower / faster; default 24 minutes) |
-| F2 / F3 | old ink lines (silhouettes only, for comparison) / 3D grass on or off |
-| F12 | screenshot to `screenshots/` |
+| Select (1) | click anything on the map to select it, Shift+click to add more: things you placed, the map's trees, bushes, lamps and benches, windows, balconies and other building details, whole buildings. Drag a selected thing (or press G, then click) to move it, R turns it, the arrow keys nudge it (Page Up / Down: height), Delete removes it, Ctrl+D copies it, F flies to it; the inspector takes exact position, turn and size. Map things become placed assets the first time they move. Buildings can be removed, not moved |
+| Place (2) | asset browser with a picture of every asset, search and categories (plants, street, play, building details); click to place, wheel or R turns, Shift+wheel or Z / X sizes, random turn and size, 0.5 m grid snap |
+| Remove (3) | click removes what the red box shows (anything, including whole buildings); Shift+drag removes everything ticked (placed things, trees and bushes, lamps and benches, building details) inside the ring; one button removes the map things standing on roads |
+| Grass (4) | hold the left button to grow 3D grass, Shift (or Clear) to clear it |
+| Pins (5) | click to drop a numbered pin with a note; pins are saved in `levels/micro15/pins.json` and can be copied as text, to point at places when asking for changes |
+| Sky & light (6) | presets (summer noon, morning, golden hour, sunset, blue hour, night, overcast, foggy morning, autumn, winter, storm) and sliders for the time, season, sun strength and colour, soft shadows, sky and horizon colours, clouds, shade light, fog, exposure, contrast, colour and glow; "Save as the level's look" keeps it (`levels/micro15/lighting.json`) |
 
-Every change is saved straight to the level's `placed.tscn`, so placed
-things are part of the level and show up as normal nodes in the editor.
-Map props you remove are listed in `levels/micro15/removed_props.json` and
-painted grass in `levels/micro15/grass_paint.json` (brush strokes drawn
-over `grass_mask.png`); both are read when the level loads, and deleting a
-file undoes all of its changes.
+Camera: hold the right mouse button and move the mouse to look, WASD to
+fly (Shift faster, Q / E down and up while looking), the wheel moves
+forwards (with the right button held it sets the flying speed). **P**
+plays from where the camera looks.
+
+**Coordinates**: metres from the middle of the map, x to the east and z to
+the south (north is -z). The status bar shows the point under the mouse
+and the camera; Ctrl+C or Copy location copies the point (or the
+selection) as `x 357.6, z 18.5`; Go to flies there. **H** draws a 10 m /
+100 m grid on the ground with labelled crossings, **M** shows the map
+(click to fly there). In the game, **F4** shows the player's position.
+
+Ctrl+Z / Ctrl+Y undo and redo every change. Everything is saved as it
+changes: placed things to the level's `placed.tscn` (so they are normal
+nodes in the Godot editor), removed map things to
+`levels/micro15/removed_props.json`, `removed_details.json` and
+`removed_buildings.json`, grass to `grass_paint.json`. They are read when
+the level loads, and deleting a file undoes all of its changes. F2 / F3
+turn the old ink lines / the 3D grass on and off, F12 saves a screenshot.
 
 ### Placeable assets (`game/assets/`)
 
@@ -112,7 +129,8 @@ The map's trees, poplars, bushes, lamps and bench, plus a street kit made by
 fence, knee-high lawn hoop fence, park bench, street bin, the big green
 waste container, the carpet beating frame, swing, slide, concrete chess
 table, bollard, bike rack, concrete planter, box hedge, blue spruce and
-birch. `tools/make_assets.gd` turns every model into a scene:
+birch, and the building details of the map. `tools/make_assets.gd` turns
+every model into a scene:
 
 ```
 godot --headless --path game --script res://tools/make_assets.gd
@@ -229,7 +247,8 @@ Aleea Proiectantului) that sets the look for the whole map:
 * Shaders in `game/shaders/`: `stylized` (every made surface),
   `foliage` (leaf clusters: lighter on top, darker underneath, sway),
   `grass`, `lawn`, all lit by `soft_light.gdshaderinc`, and `ink_outline`
-  (the old ink lines, now only an admin toggle).
+  (the old ink lines, now only an editor toggle, F2), and `editor_grid` (the
+  map editor's coordinate grid).
 * `game/levels/corner/corner.tscn` is the corner on its own (open it and
   press F6).
 

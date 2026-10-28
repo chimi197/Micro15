@@ -127,6 +127,20 @@ func stroke_count() -> int:
 	return _strokes.size()
 
 
+## The strokes after the first n (kept by the map editor for redo).
+func strokes_after(n: int) -> Array:
+	return _strokes.slice(n)
+
+
+## Paints strokes again (redo).
+func add_strokes(strokes: Array) -> void:
+	for s: Array in strokes:
+		_strokes.append(s)
+		_stamp(s[0], s[1], s[2], s[3])
+	_rebuild(Rect2())
+	_save_strokes()
+
+
 ## Drops the strokes after the first n (undo) and redraws the grass.
 func truncate_strokes(n: int) -> void:
 	if n >= _strokes.size():

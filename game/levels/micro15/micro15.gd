@@ -60,6 +60,8 @@ func _ready() -> void:
 		_take_shots.call_deferred()
 	elif "--selftest" in OS.get_cmdline_user_args():
 		_self_test.call_deferred()
+	elif "--editor-shots" in OS.get_cmdline_user_args():
+		_editor_shots.call_deferred()
 
 
 func _take_shots() -> void:
@@ -99,6 +101,59 @@ func _take_shots() -> void:
 			await get_tree().process_frame
 		print("%-16s %.1f ms a frame" % [shot_name, (Time.get_ticks_usec() - t0) / 30000.0])
 		get_viewport().get_texture().get_image().save_png(out_dir.path_join(shot_name + ".png"))
+	get_tree().quit()
+
+
+## Screenshots of the map editor's panels (docs/renders/editor_*.png),
+## without saving anything to the level.
+func _editor_shots() -> void:
+	var out_dir := ProjectSettings.globalize_path("res://").path_join("../docs/renders")
+	var frames := func(n: int) -> void:
+		for i in n:
+			await get_tree().process_frame
+	var shot := func(shot_name: String) -> void:
+		await frames.call(8)
+		get_viewport().get_texture().get_image().save_png(out_dir.path_join(shot_name + ".png"))
+		print("saved ", shot_name)
+	Admin.save_enabled = false
+	$Props.removed_file = ""
+	$Details.removed_file = ""
+	$Buildings.saving = false
+	player.camera.global_position = Vector3(150, 9, -318)
+	player.camera.look_at(Vector3(165, 1, -340))
+	Admin.open_editor()
+	var cam := get_viewport().get_camera_3d()
+	cam.global_position = Vector3(150, 9, -318)
+	cam.look_at(Vector3(165, 1, -340))
+	Admin._camera.copy_view(cam)
+	Admin.set_tool("place")
+	Admin.choose_asset("res://assets/tree_birch.tscn")
+	await frames.call(60)
+	Admin._cursor = Vector3(160, 0.0, -334)
+	await shot.call("editor_place")
+	Admin.set_tool("select")
+	var props: Scatter = $Props
+	var near := props.records_near(Vector3(165, 0, -333), 12.0)
+	if not near.is_empty():
+		Admin._set_selection([{"kind": "record", "scatter": props, "r": near[0]}])
+	Admin.ui.grid_button.button_pressed = true
+	Admin.set_grid(true)
+	Admin.ui.map_button.button_pressed = true
+	Admin.set_map(true)
+	await frames.call(4)
+	await shot.call("editor_select")
+	Admin.set_grid(false)
+	Admin.set_tool("light")
+	Admin.look_preset("Golden hour")
+	await shot.call("editor_light")
+	Admin.look_preset("Summer noon")
+	Admin.set_tool("pins")
+	Admin._pin_at = Vector3(162, 0, -336)
+	Admin.pin_add_confirm("move this tree 2 m left")
+	await shot.call("editor_pins")
+	Admin.set_tool("remove")
+	Admin.ui.keys_panel.visible = true
+	await shot.call("editor_keys")
 	get_tree().quit()
 
 
@@ -188,7 +243,6 @@ func _self_test() -> void:
 	report.call("hit")
 	await wait.call(1.0)
 	report.call("after")
-	Admin._set_active(true)
 	player.set_noclip(true)
 	Input.action_press("jump")
 	await wait.call(0.5)
@@ -196,23 +250,134 @@ func _self_test() -> void:
 	report.call("noclip")
 	player.set_noclip(false)
 	print("moved %.1f m" % start.distance_to(player.position))
-	_test_tools()
+	await _test_kerb()
+	await _test_tools()
 	get_tree().quit()
 
 
-## The admin tools' building blocks, without saving anything to the level.
+## Walks the player from a lawn onto a sidewalk (a 12 cm kerb) without
+## jumping: the step-up must lift him on.
+func _test_kerb() -> void:
+	var height := func(x: float, z: float) -> float:
+		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 2.0, z), Vector3(x, -1.0, z))
+		q.exclude = [player.get_rid()]
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		return hit.position.y if hit else -1.0
+	# sideways from the street in front of the start until the lawn
+	var x := 128.5
+	for dz in [1.0, -1.0]:
+		var z := -345.5
+		while absf(z + 345.5) < 30.0 and height.call(x, z) > 0.05:
+			z += dz * 0.05
+		if height.call(x, z) > 0.05 or height.call(x, z) < -0.5:
+			continue
+		var walk_dir := Vector3(0, 0, -dz)              # back towards the sidewalk
+		player.global_position = Vector3(x, height.call(x, z) + 0.05, z + dz * 1.2)
+		player.velocity = Vector3.ZERO
+		player.camera_pivot.rotation.y = atan2(-walk_dir.x, -walk_dir.z)
+		await get_tree().create_timer(0.3).timeout
+		var y0 := player.global_position.y
+		var jumped := false
+		Input.action_press("move_forward")
+		for i in 150:
+			await get_tree().physics_frame
+			jumped = jumped or player.velocity.y > 1.0
+			if player.global_position.y > y0 + 0.1 and player.is_on_floor() and i > 10:
+				break
+		Input.action_release("move_forward")
+		await get_tree().create_timer(0.3).timeout
+		print("kerb: lawn at height %.2f, after walking %.2f (on floor %s, jumped %s), %s" % [y0,
+				player.global_position.y, player.is_on_floor(), jumped,
+				"stepped up" if player.global_position.y > y0 + 0.1 and not jumped else "STUCK"])
+		return
+	print("kerb: no lawn found next to the street")
+
+
+## The map editor's building blocks, without saving anything to the level.
 func _test_tools() -> void:
 	var props: Scatter = $Props
+	var details: Scatter = $Details
+	var buildings: StyledModel = $Buildings
 	var grass: GrassField = $Grass
-	var saved := [props.removed_file, grass.paint_file]
+	var saved := [props.removed_file, details.removed_file, buildings.removed_file, grass.paint_file]
 	props.removed_file = ""
+	details.removed_file = ""
+	buildings.saving = false
 	grass.paint_file = ""
-	var entry: Array = JSON.parse_string(FileAccess.get_file_as_string(props.data))["tree_a"][0]
-	var at := Vector3(entry[0], 0.0, entry[1])
-	var removed := props.remove_near(at + Vector3(0.4, 0, 0.3))
-	print("remove tool: removed %s, listed %s" % [removed, props._is_removed("tree_a", entry[0], entry[1])])
-	props.restore("tree_a", at)
-	print("remove tool: restored, listed %s" % props._is_removed("tree_a", entry[0], entry[1]))
+	Admin.save_enabled = false
+	Admin.open_editor()
+	# a bush, looked at from above and to the side: picked by its box
+	var bush := -1
+	for r in props.record_count():
+		if props.record_proto(r) == "bush_a" and not props.is_removed(r):
+			bush = r
+			break
+	var at := props.record_transform(bush).origin
+	var from := at + Vector3(0, 9, 7)
+	var picked: Dictionary = Admin.pick_ray(from, (at + Vector3(0, 0.4, 0) - from).normalized())
+	print("pick bush: %s %s" % [picked.ref.get("kind"), props.record_proto(picked.ref.r) if picked.ref.get("kind") == "record" else ""])
+	Admin._remove_refs([picked.ref], "Remove bush")
+	var gone := props.is_removed(bush)
+	Admin.undo()
+	var back := not props.is_removed(bush)
+	Admin.redo()
+	var again := props.is_removed(bush)
+	Admin.undo()
+	print("remove bush: removed %s, undo brings it back %s, redo %s" % [gone, back, again])
+	# a window: from in front of it
+	var win := 0
+	while details.record_proto(win) != "win":
+		win += 1
+	var wt := details.record_transform(win)
+	var centre := wt * details.record_aabb(win).get_center()
+	var found := ""
+	for side in [wt.basis.z, -wt.basis.z, wt.basis.x, -wt.basis.x]:
+		var eye: Vector3 = centre + side.normalized() * 6.0
+		var p: Dictionary = Admin.pick_ray(eye, (centre - eye).normalized())
+		if p.ref.get("kind") == "record" and p.ref.scatter == details:
+			found = details.record_proto(p.ref.r)
+			break
+	print("pick window: %s" % found)
+	# a whole building, from above
+	var mi: MeshInstance3D = buildings.find_children("bld_*", "MeshInstance3D", true, false)[0]
+	var top := mi.global_transform * mi.get_aabb().get_center() + Vector3(0, 60, 0)
+	var hit_b: Dictionary = Admin.pick_ray(top, Vector3.DOWN)
+	var kind: String = hit_b.ref.get("kind", "")
+	if kind == "part":
+		Admin._remove_refs([hit_b.ref], "Remove building")
+		await get_tree().physics_frame
+		var below: Dictionary = Admin.pick_ray(top, Vector3.DOWN)
+		print("remove building %s: hidden %s, ray now hits %s" % [mi.name, not mi.visible,
+				below.ref.get("kind", "the ground")])
+		Admin.undo()
+		await get_tree().physics_frame
+	else:
+		print("pick building: got %s" % kind)
+	# moving a map tree turns it into a placed asset
+	var tree := props.find_record(props.record_proto(0), props.record_transform(0).origin)
+	var placed_before := $Placed.get_child_count()
+	Admin._set_selection([{"kind": "record", "scatter": props, "r": tree}])
+	var x0 := props.record_transform(tree).origin.x
+	Admin.edit_selected("x", x0 + 2.0)
+	var moved: Node3D = $Placed.get_child($Placed.get_child_count() - 1)
+	print("move map %s: placed things %d -> %d, now at x %.1f (was %.1f), map record hidden %s" % [
+			props.record_proto(tree), placed_before, $Placed.get_child_count(), moved.global_position.x, x0,
+			props.is_removed(tree)])
+	Admin.undo()
+	Admin.undo()
+	print("undo twice: placed things %d, map record back %s" % [$Placed.get_child_count(), not props.is_removed(tree)])
+	Admin.clear_selection()
+	var on_roads: int = Admin.remove_props_on_roads()
+	Admin.undo()
+	print("map things on roads: %d (undone)" % on_roads)
+	# a placed bush (no collision): still picked, so it can be removed
+	var placed_bush: Node3D = load("res://assets/bush_a.tscn").instantiate()
+	$Placed.add_child(placed_bush)
+	placed_bush.global_position = Vector3(128.5, 0.13, -345.5)
+	var eye := Vector3(128.5, 6.0, -339.0)
+	var pb: Dictionary = Admin.pick_ray(eye, (Vector3(128.5, 0.5, -345.5) - eye).normalized())
+	print("pick placed bush on the street: %s" % ("found" if pb.ref.get("node") == placed_bush else "MISSED %s" % pb.ref))
+	placed_bush.free()
 	var spot := Vector2(128.5, -345.5)       # the street in front of the player
 	var before := grass._lawn(spot.x, spot.y)
 	grass.paint(spot.x, spot.y, 3.0, true)
@@ -228,5 +393,15 @@ func _test_tools() -> void:
 		cycle.apply()
 		print("sun %s: elevation %.1f, energy %.2f, light dir %s" % [cycle.clock(),
 				rad_to_deg(asin(cycle.sun_direction(t).y)), $Sun.light_energy, (-$Sun.global_basis.z).snapped(Vector3.ONE * 0.01)])
+	Admin.look_preset("Overcast")
+	print("look Overcast: sun energy %.2f, fog %.4f, clouds %.1f, saturation %.2f" % [$Sun.light_energy,
+			cycle._env.fog_density, cycle.look.clouds, cycle._env.adjustment_saturation])
+	Admin.look_preset("Summer noon")
+	print("coordinates: %s, parse \"x 357.6, z 18.5\" -> %s" % [Coordinates.text(Vector3(357.63, 0, 18.47)),
+			Coordinates.parse("x 357.6, z 18.5")])
+	Admin.close_editor()
+	Admin.save_enabled = true
 	props.removed_file = saved[0]
-	grass.paint_file = saved[1]
+	details.removed_file = saved[1]
+	buildings.saving = true
+	grass.paint_file = saved[3]
