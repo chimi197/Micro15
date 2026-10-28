@@ -23,9 +23,19 @@ families, palette, detail density and how to make new assets) are in
   restrained surface variation (large-scale mottling, paving seams, a darker
   band at the foot of walls), and a coordinated palette of muted pastels
   replaces the raw model colours.
-* Trees, bushes and hedges are clumps of leaf cards around small cores with
-  normals bent outwards (`blender/foliage.py`); spruces are drooping,
-  faceted tiers; benches and lamps have chunky, chamfered parts.
+* Trees, bushes and hedges are balls of leaf cards around small dark cores
+  with normals bent outwards (`blender/foliage.py`). Each card shows a
+  painted patch of hanging leaves (`game/style/leaf_*.png`, made by
+  `tools/make_leaf_texture.py`), cut out with alpha so crowns have leafy,
+  scalloped outlines; cards seen edge-on thin out instead of showing as
+  streaks. Spruces are drooping, faceted tiers; benches and lamps have
+  chunky, chamfered parts.
+* A day cycle (`scripts/sun_cycle.gd`, the `SunCycle` node) moves the sun
+  along its real path over Satu Mare for the local clock time and colours
+  the sunlight, sky, ambient light and haze to match: warm and low in the
+  morning and evening, a soft blue moonlight at night. It starts paused at
+  12:00 (the usual look); the admin tool changes the time or runs the
+  clock.
 
 ## Playing (`game/`, Godot 4.7)
 
@@ -70,16 +80,23 @@ builds). F1 opens the admin bar:
 
 | Key | Action |
 | --- | --- |
-| B | build mode: pick an asset from the list, left click places it, wheel or Q/E turns it, Shift+wheel or Z/X scales it, G snaps to a 0.5 m grid, Delete removes the placed thing under the mouse, middle click copies it, Ctrl+Z undoes; hold the right mouse button to look around |
+| B | build mode: pick an asset from the list, left click places it, wheel or Q/E turns it, Shift+wheel or Z/X scales it, G snaps to a 0.5 m grid, Delete removes the thing under the mouse (placed, or a map tree, bush, lamp or bench), middle click copies it, Ctrl+Z undoes; hold the right mouse button to look around |
+| B, then **[ remove tool ]** | left click removes what is under the mouse: things you placed, or the map's trees, poplars, bushes, lamps and benches (a red ring shows its reach); Ctrl+Z puts it back |
+| B, then **[ grass brush ]** | hold left to grow 3D grass, Shift+left to clear it, wheel or Z/X for the brush size (the ring); Ctrl+Z undoes a whole stroke |
 | N | noclip: fly through everything (Space up, Ctrl down, Shift fast) |
 | T | teleport to the point under the mouse (or the screen centre) |
 | [ ] | movement speed down / up |
-| , . | sun higher / lower |
+| , . | time of day back / on by half an hour (moves the sun) |
+| / | day cycle running / stopped (Shift+, . makes a day slower / faster; default 24 minutes) |
 | F2 / F3 | old ink lines (silhouettes only, for comparison) / 3D grass on or off |
 | F12 | screenshot to `screenshots/` |
 
 Every change is saved straight to the level's `placed.tscn`, so placed
 things are part of the level and show up as normal nodes in the editor.
+Map props you remove are listed in `levels/micro15/removed_props.json` and
+painted grass in `levels/micro15/grass_paint.json` (brush strokes drawn
+over `grass_mask.png`); both are read when the level loads, and deleting a
+file undoes all of its changes.
 
 ### Placeable assets (`game/assets/`)
 

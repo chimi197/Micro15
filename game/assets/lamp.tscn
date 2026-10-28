@@ -7,12 +7,12 @@
 height = 3.0
 radius = 0.15
 
-[node name="lamp" type="StaticBody3D" unique_id=1958552644]
+[node name="lamp" type="StaticBody3D" unique_id=1010349981]
 script = ExtResource("1_dhgu1")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=415350662]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=708233645]
 mesh = ExtResource("2_88exv")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=1834715087]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=2083443727]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 shape = SubResource("CylinderShape3D_uhlvb")

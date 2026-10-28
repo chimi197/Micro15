@@ -58,8 +58,8 @@ def card(bm, uv, centre, normal, width, height, rng, m, roll=0.6):
     return f
 
 
-def clump(bm, centre, radii, rng, m, cards=9, card_size=(1.3, 1.7), core_m=None, core=0.55,
-          spread=(0.25, 0.6), up_bias=0.3, lump=0.15, min_z=None, roll=0.6):
+def clump(bm, centre, radii, rng, m, cards=12, card_size=(0.95, 1.25), core_m=None, core=0.5,
+          spread=(0.55, 0.85), up_bias=0.3, lump=0.15, min_z=None, roll=0.6):
     """A ball of leaves: leaf cards around centre (radii of the ellipsoid
     they cover), facing outwards and a little up, overlapping so the
     texture's leaves form a full, scalloped silhouette. card_size is a
@@ -70,8 +70,8 @@ def clump(bm, centre, radii, rng, m, cards=9, card_size=(1.3, 1.7), core_m=None,
     uv = bm.loops.layers.uv.verify()
     rx, ry, rz = radii
     mean_r = (rx + ry + rz) / 3
-    if core_m is not None:
-        res = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0)
+    if core_m is not None and core > 0:
+        res = bmesh.ops.create_icosphere(bm, subdivisions=2, radius=1.0)
         seed = rng.uniform(0, 100)
         for v in res["verts"]:
             d = v.co.normalized()

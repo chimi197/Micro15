@@ -7,12 +7,12 @@
 height = 3.0
 radius = 0.4
 
-[node name="tree_b" type="StaticBody3D" unique_id=1303239507]
+[node name="tree_b" type="StaticBody3D" unique_id=491824265]
 script = ExtResource("1_jckeb")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=872803313]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1519756578]
 mesh = ExtResource("2_asmkv")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=2084914052]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1067830987]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 shape = SubResource("CylinderShape3D_eg08b")

@@ -44,7 +44,13 @@ const SHOTS := {
 	"map_grid": [Vector3(-60, 45, -150), Vector3(-60, 5, -300), null],
 	"map_south": [Vector3(60, 70, 260), Vector3(40, 0, 60), null],
 	"map_overview": [Vector3(220, 170, 40), Vector3(-60, 0, -280), null],
+	"trees_yard": [Vector3(165, 2.2, -342), Vector3(185, 6.0, -322), null],
+	"time_morning": [Vector3(124, 2.6, -341.5), Vector3(210, 8.0, -351), Vector3(128.5, 0.15, -345.5)],
+	"time_evening": [Vector3(124, 2.6, -341.5), Vector3(210, 8.0, -351), Vector3(128.5, 0.15, -345.5)],
+	"time_night": [Vector3(124, 2.6, -341.5), Vector3(210, 8.0, -351), Vector3(128.5, 0.15, -345.5)],
 }
+# shots at another time of day (SunCycle); the rest are at its default
+const SHOT_TIMES := {"time_morning": 8.0, "time_evening": 20.4, "time_night": 23.5}
 
 @onready var player: CharacterBody3D = $Player
 
@@ -84,6 +90,8 @@ func _take_shots() -> void:
 		if shot.size() > 3:
 			player.show_pose(shot[3], shot[4])
 			player.body_mesh.rotation.y = shot[5]
+		$SunCycle.time_of_day = SHOT_TIMES.get(shot_name, 12.0)
+		$SunCycle.apply()
 		for i in 30:
 			await get_tree().process_frame
 		get_viewport().get_texture().get_image().save_png(out_dir.path_join(shot_name + ".png"))
@@ -184,4 +192,37 @@ func _self_test() -> void:
 	report.call("noclip")
 	player.set_noclip(false)
 	print("moved %.1f m" % start.distance_to(player.position))
+	_test_tools()
 	get_tree().quit()
+
+
+## The admin tools' building blocks, without saving anything to the level.
+func _test_tools() -> void:
+	var props: Scatter = $Props
+	var grass: GrassField = $Grass
+	var saved := [props.removed_file, grass.paint_file]
+	props.removed_file = ""
+	grass.paint_file = ""
+	var entry: Array = JSON.parse_string(FileAccess.get_file_as_string(props.data))["tree_a"][0]
+	var at := Vector3(entry[0], 0.0, entry[1])
+	var removed := props.remove_near(at + Vector3(0.4, 0, 0.3))
+	print("remove tool: removed %s, listed %s" % [removed, props._is_removed("tree_a", entry[0], entry[1])])
+	props.restore("tree_a", at)
+	print("remove tool: restored, listed %s" % props._is_removed("tree_a", entry[0], entry[1]))
+	var spot := Vector2(128.5, -345.5)       # the street in front of the player
+	var before := grass._lawn(spot.x, spot.y)
+	grass.paint(spot.x, spot.y, 3.0, true)
+	var painted := grass._lawn(spot.x, spot.y)
+	grass.paint(spot.x, spot.y, 1.0, false)
+	var cleared := grass._lawn(spot.x, spot.y)
+	grass.truncate_strokes(0)
+	print("grass brush: lawn %s -> grown %s -> cleared %s -> undone %s" % [before, painted, cleared,
+			grass._lawn(spot.x, spot.y)])
+	var cycle: SunCycle = $SunCycle
+	for t in [6.0, 8.0, 12.0, 13.5, 20.4, 23.5]:
+		cycle.time_of_day = t
+		cycle.apply()
+		print("sun %s: elevation %.1f, energy %.2f, light dir %s" % [cycle.clock(),
+				rad_to_deg(asin(cycle.sun_direction(t).y)), $Sun.light_energy, (-$Sun.global_basis.z).snapped(Vector3.ONE * 0.01)])
+	props.removed_file = saved[0]
+	grass.paint_file = saved[1]

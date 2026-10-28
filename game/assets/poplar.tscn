@@ -7,12 +7,12 @@
 height = 3.0
 radius = 0.3
 
-[node name="poplar" type="StaticBody3D" unique_id=1974568932]
+[node name="poplar" type="StaticBody3D" unique_id=2025947690]
 script = ExtResource("1_wf1yi")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=1281577029]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=783339644]
 mesh = ExtResource("2_xcccm")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=796336359]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=2067811625]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 shape = SubResource("CylinderShape3D_8f2xg")

@@ -18,8 +18,9 @@ colours and gameplay.
    faceted or clumped, with irregular, asymmetric silhouettes. Nothing is
    a bare primitive, and nothing carries tiny detail.
 3. **Leafy canopies are built from clusters.** Trees are made of leaf
-   clumps with a ragged outline. They are lighter on top, darker inside
-   and underneath. Trunks taper and fork.
+   clumps with a ragged outline of individual, readable leaves. They are
+   lighter on top, darker inside and underneath. Trunks are tall, taper
+   and fork.
 4. **Muted, value-structured colour.** Large surfaces (ground, walls,
    rocks) are mid-value and slightly desaturated. Saturated colour is
    saved for small things that matter (a cone, a lantern). Each material
@@ -59,8 +60,12 @@ prop, and buildings as they are. Small details stop drawing with distance
   shadows, ambient light 70% from the sky and 30% a neutral warm grey, so
   shadows read cool without turning blue. There are no cel bands and no
   ink lines; the ink pass stays only as an admin toggle (F2).
-- Sun: warm white (1.0, 0.95, 0.86), energy 1.35, 46° high, from the
-  south-east. Mid-morning daylight stays the game's lighting.
+- Sun: warm white (1.0, 0.95, 0.86), energy 1.35. `SunCycle` places it
+  for the local clock time (default 12:00, about 50° high in the
+  south-east, mid-August); towards sunrise and sunset it turns orange and
+  dimmer, and the sky horizon and haze warm up; at night a cool blue
+  moonlight (energy 0.16) and a dark blue sky take over. Daylight stays
+  the game's default.
 - Tonemapping is Filmic (exposure 1.0), so bright walls roll off instead of
   clipping. Light haze (fog 0.00025, aerial perspective 0.3) separates
   distant blocks. There is no bloom and no colour grading.
@@ -102,7 +107,13 @@ on small things only (playground, shop bands, flowers, cones).
   kerbs. Lawns are a yellow
   green around 45–50%, with patches.
 - **Foliage:** three greens per tree kind (shadow, mid, top), going
-  yellower towards the tops. Spruce is a blue green and stays darker than
+  yellower towards the tops. Leaf cards carry a greyscale painted patch of
+  hanging leaves (`style/leaf_broad.png` for street trees, poplars and
+  bushes, `leaf_small.png` for birches and hedges; repaint with
+  `tools/make_leaf_texture.py`), tinted per tree kind in the foliage
+  shader and cut out with alpha scissor. Each leaf has a faint darker
+  edge and a lighter upper half; the dark core inside each clump is the
+  same green, 25% darker. Spruce is a blue green and stays darker than
   the lawn. Birch is a lighter yellow green.
 - **Metal:** painted metal uses the Romanian municipal green (#3f6e4a) or
   dark grey. Bare metal is a light grey.

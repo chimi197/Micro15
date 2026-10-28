@@ -3,18 +3,21 @@
 ## colours the light, sky, ambient light and fog to match: warm and low in
 ## the morning and evening, a soft blue moonlight at night.
 ##
-## The clock starts paused at time_of_day (10:30 matches the game's usual
-## look); running moves it on, a whole day taking day_minutes. The admin
+## time_of_day is the local clock (summer time in Romania, so the sun is
+## highest at about 13:30). The clock starts paused at time_of_day (12:00
+## matches the game's usual look); running moves it on, a whole day taking day_minutes. The admin
 ## tool (F1) changes the time with , and . and starts or stops it with /.
 class_name SunCycle
 extends Node
 
 @export var sun: DirectionalLight3D
 @export var world_environment: WorldEnvironment
-@export_range(0.0, 24.0, 0.01) var time_of_day := 10.5      ## hours
+@export_range(0.0, 24.0, 0.01) var time_of_day := 12.0      ## hours, local clock
 @export var running := false
 @export var day_minutes := 24.0                             ## real minutes for a whole day
 @export var latitude := 47.79                               ## Satu Mare
+@export var longitude := 22.88
+@export var utc_offset := 3.0                               ## EEST
 @export_range(1, 365) var day_of_year := 230                ## mid August
 @export var north_offset := 0.0                             ## degrees; north is -Z
 
@@ -68,11 +71,12 @@ func clock() -> String:
 	return "%02d:%02d" % [minutes / 60, minutes % 60]
 
 
-## Direction towards the sun (y up, north -Z) at hour t.
+## Direction towards the sun (y up, north -Z) at clock hour t.
 func sun_direction(t: float) -> Vector3:
 	var lat := deg_to_rad(latitude)
 	var decl := deg_to_rad(23.44) * sin(TAU * (284.0 + day_of_year) / 365.0)
-	var hour := deg_to_rad(15.0 * (t - 12.0))
+	var solar := t - utc_offset + longitude / 15.0
+	var hour := deg_to_rad(15.0 * (solar - 12.0))
 	var elevation := asin(sin(lat) * sin(decl) + cos(lat) * cos(decl) * cos(hour))
 	var azimuth := atan2(sin(hour), cos(hour) * sin(lat) - tan(decl) * cos(lat)) + PI \
 			+ deg_to_rad(north_offset)

@@ -4,11 +4,11 @@
 [ext_resource type="ArrayMesh" path="res://assets/meshes/chess_table.res" id="2_144ea"]
 [ext_resource type="Shape3D" path="res://assets/meshes/chess_table_shape.res" id="3_1didq"]
 
-[node name="chess_table" type="StaticBody3D" unique_id=721545836]
+[node name="chess_table" type="StaticBody3D" unique_id=285363339]
 script = ExtResource("1_n5x3f")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=1636300644]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1498449897]
 mesh = ExtResource("2_144ea")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=1306658021]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1460966183]
 shape = ExtResource("3_1didq")

@@ -4,11 +4,11 @@
 [ext_resource type="ArrayMesh" path="res://assets/meshes/slide.res" id="2_drbdx"]
 [ext_resource type="Shape3D" path="res://assets/meshes/slide_shape.res" id="3_6bxsm"]
 
-[node name="slide" type="StaticBody3D" unique_id=1932774907]
+[node name="slide" type="StaticBody3D" unique_id=508000624]
 script = ExtResource("1_ybyvi")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=1303432567]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=448200487]
 mesh = ExtResource("2_drbdx")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=1824687074]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1873013550]
 shape = ExtResource("3_6bxsm")

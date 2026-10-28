@@ -1,7 +1,8 @@
 """Paints the leaf-cluster textures for tree canopies, bushes and hedges
-(game/style/leaf_*.png): a bunch of rounded, pointed leaves seen from the
-front, lighter towards the top, each leaf edged by a thin darker line where
-it overlaps the ones behind it, on a transparent background. The colour is
+(game/style/leaf_*.png): a lumpy patch of rounded, pointed leaves seen from
+the side, hanging outwards and down, lighter towards the top, each leaf
+edged by a faint darker line where it overlaps the ones behind it, on a
+transparent background. The colour is
 greyscale (the foliage shader tints it); alpha cuts the leaves out.
 
     python tools/make_leaf_texture.py
@@ -34,52 +35,62 @@ def leaf_outline(base, angle, length, width, n=24):
     return left + right[::-1]
 
 
+def _blob(rng, cx, cy, R):
+    """A lumpy patch made of a few overlapping circles: (x, y, r) each."""
+    circles = [(cx, cy, R * 0.62)]
+    for i in range(6):
+        a = math.tau * i / 6 + rng.uniform(-0.4, 0.4)
+        d = R * rng.uniform(0.3, 0.42)
+        circles.append((cx + math.cos(a) * d, cy + math.sin(a) * d, R * rng.uniform(0.4, 0.55)))
+    return circles
+
+
+def _inside(circles, x, y, shrink=1.0):
+    return any((x - cx) ** 2 + (y - cy) ** 2 <= (r * shrink) ** 2 for cx, cy, r in circles)
+
+
 def paint(seed, n_leaves, leaf_len, cluster_r, out):
+    """A patch of foliage as seen from the side: leaves hang outwards and
+    down from a lumpy middle, upper ones overlapping lower ones, lighter on
+    top. The middle is backed by a dark fill (the shade inside the bush)."""
     rng = random.Random(seed)
     S = SIZE * SS
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    cx, cy = S * 0.5, S * 0.52
+    cx, cy = S * 0.5, S * 0.5
     R = S * cluster_r
+    circles = _blob(rng, cx, cy, R * 0.82)
+    for x, y, r in circles:                      # dark inside
+        r *= 0.86
+        d.ellipse((x - r, y - r, x + r, y + r), fill=(118, 118, 118, 255))
     leaves = []
-    for _ in range(n_leaves):
-        # more leaves near the middle; tips point away from the middle
-        a = rng.uniform(0, math.tau)
-        r = R * math.sqrt(rng.random()) * 0.82
-        bx, by = cx + math.cos(a) * r * 0.6, cy + math.sin(a) * r * 0.6
-        out_angle = math.atan2(by - cy, bx - cx) if r > 1 else rng.uniform(0, math.tau)
-        ang = out_angle + rng.uniform(-0.7, 0.7)
-        L = S * leaf_len * rng.uniform(0.75, 1.15)
-        # start a little behind the base so the middle of the bunch is covered
-        bx -= math.cos(ang) * L * 0.3
-        by -= math.sin(ang) * L * 0.3
-        W = L * rng.uniform(0.62, 0.78)
-        # depth: leaves further out and higher are drawn later (in front)
-        depth = r / R + (cy - by) / R * 0.3 + rng.uniform(-0.25, 0.25)
-        leaves.append((depth, bx, by, ang, L, W))
-    leaves.sort()
-    # a dark, lumpy backing in the middle: the shadowed inside of the bunch
-    back = []
-    for i in range(40):
-        t = math.tau * i / 40
-        rr = R * 0.5 * (1 + 0.12 * math.sin(5 * t + seed) + rng.uniform(-0.05, 0.05))
-        back.append((cx + math.cos(t) * rr, cy + math.sin(t) * rr))
-    d.polygon(back, fill=(140, 140, 140, 255))
-    for depth, bx, by, ang, L, W in leaves:
-        tip_y = by + math.sin(ang) * L
-        top = 1.0 - (min(by, tip_y) - (cy - R)) / (2 * R)          # 1 at the top of the bunch
-        v = 0.66 + 0.26 * max(0.0, min(1.0, top)) + rng.uniform(-0.06, 0.06)
-        v = max(0.45, min(1.0, v))
-        # thin darker rim first, then the leaf in two tones (lighter half)
-        rim = leaf_outline((bx, by), ang, L * 1.04, W * 1.12)
-        d.polygon(rim, fill=(int(255 * v * 0.72),) * 3 + (255,))
+    while len(leaves) < n_leaves:
+        x, y = cx + rng.uniform(-R, R), cy + rng.uniform(-R, R)
+        if not _inside(circles, x, y):
+            continue
+        out_a = math.atan2(y - cy, x - cx)
+        # outwards, pulled towards hanging down (+y), with some scatter
+        ang = math.atan2(math.sin(out_a) + 0.9, math.cos(out_a)) + rng.uniform(-0.7, 0.7)
+        L = S * leaf_len * rng.uniform(0.75, 1.2)
+        W = L * rng.uniform(0.55, 0.7)
+        bx, by = x - math.cos(ang) * L * 0.45, y - math.sin(ang) * L * 0.45
+        leaves.append((y + rng.uniform(-0.15, 0.15) * R, bx, by, ang, L, W))
+    leaves.sort(key=lambda l: -l[0])             # lower leaves first, upper ones on top
+    for _, bx, by, ang, L, W in leaves:
+        mid_y = by + math.sin(ang) * L * 0.5
+        top = 1.0 - (mid_y - (cy - R)) / (2 * R)  # 1 at the top of the patch
+        v = 0.62 + 0.34 * max(0.0, min(1.0, top)) + rng.uniform(-0.07, 0.07)
+        v = max(0.42, min(1.0, v))
+        rim = leaf_outline((bx, by), ang, L * 1.03, W * 1.1)
+        d.polygon(rim, fill=(int(255 * v * 0.84),) * 3 + (255,))
         body = leaf_outline((bx, by), ang, L, W)
         d.polygon(body, fill=(int(255 * v),) * 3 + (255,))
-        half = [p for i, p in enumerate(body) if i <= len(body) // 2]
-        d.polygon(half + [(bx, by)], fill=(int(255 * min(1.0, v * 1.07)),) * 3 + (255,))
-        # midrib
-        mx, my = bx + math.cos(ang) * L * 0.85, by + math.sin(ang) * L * 0.85
-        d.line([(bx, by), (mx, my)], fill=(int(255 * v * 0.85),) * 3 + (255,), width=max(1, int(SS * 2)))
+        # the lit half (upper side) a little lighter
+        n = len(body) // 2
+        half = body[:n + 1] if math.cos(ang) >= 0 else body[n:] + body[:1]
+        d.polygon(half + [(bx, by)], fill=(int(255 * min(1.0, v * 1.06)),) * 3 + (255,))
+        mx, my = bx + math.cos(ang) * L * 0.8, by + math.sin(ang) * L * 0.8
+        d.line([(bx, by), (mx, my)], fill=(int(255 * v * 0.9),) * 3 + (255,), width=max(1, int(SS * 1.5)))
     img = img.resize((SIZE, SIZE), Image.LANCZOS)
     # keep the cut-out crisp after downsampling
     r, g, b, a = img.split()
@@ -88,7 +99,6 @@ def paint(seed, n_leaves, leaf_len, cluster_r, out):
     rgb = Image.merge("RGB", (r, g, b))
     bg = rgb.filter(ImageFilter.GaussianBlur(12))
     mask = a.point(lambda x: 255 if x > 0 else 0)
-    filled = Image.composite(rgb, Image.new("RGB", rgb.size, (200, 200, 200)), mask)
     filled = Image.composite(rgb, bg.point(lambda x: min(255, int(x * 1.6))), mask)
     out_img = Image.merge("RGBA", (*filled.split(), a))
     out_img.save(out)
@@ -98,8 +108,8 @@ def paint(seed, n_leaves, leaf_len, cluster_r, out):
 def main(root):
     style = os.path.join(root, "game", "style")
     os.makedirs(style, exist_ok=True)
-    print(paint(3, 70, 0.17, 0.44, os.path.join(style, "leaf_broad.png")))
-    print(paint(8, 170, 0.11, 0.45, os.path.join(style, "leaf_small.png")))
+    print(paint(3, 120, 0.13, 0.44, os.path.join(style, "leaf_broad.png")))
+    print(paint(8, 300, 0.08, 0.45, os.path.join(style, "leaf_small.png")))
 
 
 if __name__ == "__main__":

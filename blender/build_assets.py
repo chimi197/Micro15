@@ -380,10 +380,10 @@ def planter(k):
 def hedge(k):
     """2 m of clipped box hedge: a boxy core covered in small leaf cards,
     so the top and sides read as clipped but the outline stays leafy."""
-    k.block((0, 0, 0.42), (1.9, 0.6, 0.8), "hedge_bush_core", bevel=0.12, segments=2, smooth=True)
-    for i in range(5):
-        k.leaves((-0.8 + i * 0.4, 0, 0.45), (0.3, 0.36, 0.42), "hedge_bush", seed=i, bend_centre=(0, 0, 0.3),
-                 cards=10, card_size=(1.2, 1.5), spread=(0.75, 0.95), core=0.5, up_bias=0.15, min_z=0.0, roll=0.3)
+    k.block((0, 0, 0.4), (1.8, 0.5, 0.74), "hedge_bush_core", bevel=0.12, segments=2, smooth=True)
+    for i in range(6):
+        k.leaves((-0.8 + i * 0.32, 0, 0.42), (0.36, 0.4, 0.46), "hedge_bush", seed=i, bend_centre=(0, 0, 0.3),
+                 cards=12, card_size=(0.9, 1.15), spread=(0.85, 1.0), core=0.0, up_bias=0.15, min_z=0.0, roll=0.3)
 
 
 def tree_pine(k):
@@ -421,7 +421,7 @@ def tree_birch(k):
     for i, (x, y, z, r) in enumerate(((0, 0, 6.6, 1.25), (0.95, 0.3, 5.1, 0.95), (-0.85, -0.4, 5.5, 1.0),
                                       (0.25, -0.7, 4.8, 0.85), (-0.3, 0.6, 5.0, 0.85), (0.1, 0.1, 5.8, 1.0))):
         k.leaves((x, y, z), (r, r, r * 1.15), "birch_leaf", seed=20 + i, bend_centre=(0, 0, 5.6),
-                 cards=9, card_size=(1.2, 1.5), core=0.5, roll=0.8)
+                 cards=16, roll=0.8)
 
 
 ASSETS = {

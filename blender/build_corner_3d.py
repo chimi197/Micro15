@@ -573,17 +573,17 @@ def make_tree(name, col, seed, leaf, height=3.2, spread=2.4, nblobs=7):
     li, ci = leaf_mats(B, leaf)
     centre = Vector((0, 0, height + spread * 0.75))
     radii = Vector((spread, spread, spread * 1.12))
-    n = nblobs + 7
+    n = nblobs + 3
     clumps = []
     for d in fol._sphere_dirs(n, rng, 0.15):
-        k = rng.uniform(0.55, 0.72)
+        k = rng.uniform(0.5, 0.65)
         clumps.append((centre + Vector((d.x * radii.x * k, d.y * radii.y * k, d.z * radii.z * k)),
-                       spread * rng.uniform(0.42, 0.55)))
-    for t in tips[1:][::2]:                  # leaves on the twig ends too
-        clumps.append((t, spread * rng.uniform(0.32, 0.42)))
-    clumps.append((centre, spread * 0.6))
+                       spread * rng.uniform(0.5, 0.62)))
+    for t in tips[1:][::3]:                  # leaves on the twig ends too
+        clumps.append((t, spread * rng.uniform(0.36, 0.45)))
     for c, r in clumps:
-        fol.clump(B.bm, c, (r, r, r * 0.9), rng, li, cards=8, card_size=(1.25, 1.6), core_m=ci, core=0.6)
+        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, core_m=ci)
+    fol.clump(B.bm, centre, (spread * 0.7,) * 3, rng, li, cards=6, core_m=ci, core=0.7)
     ob = B.finish(name, col)
     bent_normals(ob, centre, (li, ci))
     return ob
@@ -600,8 +600,7 @@ def make_poplar(name, col, seed):
         z = 2.6 + k * 0.95
         r = 1.15 * math.sin(math.pi * (k + 1.2) / 12.4) + 0.3
         c = Vector((rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), z + rng.uniform(-0.2, 0.2)))
-        fol.clump(B.bm, c, (r, r, r * 1.2), rng, li, cards=8, card_size=(1.3, 1.6), core_m=ci,
-                  up_bias=0.45, roll=0.3)
+        fol.clump(B.bm, c, (r, r, r * 1.2), rng, li, cards=10, core_m=ci, up_bias=0.45, roll=0.3)
     ob = B.finish(name, col)
     bent_normals(ob, Vector((0, 0, 7.5)), (li, ci), axis_scale=0.25)
     return ob
@@ -616,7 +615,7 @@ def make_bush(name, col, seed, flowers=False):
     for _ in range(4):
         c = Vector((rng.uniform(-0.8, 0.8), rng.uniform(-0.45, 0.45), rng.uniform(0.4, 0.6)))
         r = rng.uniform(0.55, 0.75)
-        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, cards=8, card_size=(1.3, 1.6), core_m=ci, core=0.7,
+        fol.clump(B.bm, c, (r, r, r * 0.85), rng, li, cards=10, core_m=ci, core=0.6,
                   min_z=0.0)
         clumps.append((c, r))
     if flowers:

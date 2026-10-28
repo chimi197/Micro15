@@ -531,8 +531,8 @@ def run(root, part="all"):
         export(scn, os.path.join(out, "details.glb"), objs)
         scn = fresh("MapProps")
         pc = scn.collection
-        lib = [c3.make_tree("tree_a", pc, 1, "leaf_a"), c3.make_tree("tree_b", pc, 2, "leaf_b", 3.6, 2.8, 8),
-               c3.make_tree("tree_c", pc, 3, "leaf_c", 2.8, 2.1, 6), c3.make_poplar("poplar", pc, 4),
+        lib = [c3.make_tree("tree_a", pc, 1, "leaf_a", 4.4, 3.2, 8), c3.make_tree("tree_b", pc, 2, "leaf_b", 5.0, 3.7, 10),
+               c3.make_tree("tree_c", pc, 3, "leaf_c", 3.8, 2.7, 7), c3.make_poplar("poplar", pc, 4),
                c3.make_bush("bush_a", pc, 5), c3.make_bush("bush_b", pc, 6, flowers=True),
                c3.make_lamp(pc), c3.make_bench(pc)]
         export(scn, os.path.join(out, "props.glb"), lib)

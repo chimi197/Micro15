@@ -47,6 +47,10 @@ void fragment() {
 		vec2 px = UV * vec2(textureSize(leaf_tex, 0));
 		float mip = max(0.0, 0.5 * log2(max(dot(dFdx(px), dFdx(px)), dot(dFdy(px), dFdy(px)))));
 		leaf.a *= 1.0 + mip * 0.25;
+		// cards seen edge-on would show as thin streaks: let their leaves
+		// thin out instead (the flat card's own normal, not the bent one)
+		vec3 card_n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
+		leaf.a *= smoothstep(0.1, 0.4, abs(dot(card_n, VIEW)));
 	}
 	ALBEDO = tint.rgb * shade * leaf.rgb * (1.0 + variation * (n - 0.5) * 2.0);
 	ALPHA = leaf.a;

@@ -4,11 +4,11 @@
 [ext_resource type="ArrayMesh" path="res://assets/meshes/planter.res" id="2_xok3o"]
 [ext_resource type="Shape3D" path="res://assets/meshes/planter_shape.res" id="3_oapey"]
 
-[node name="planter" type="StaticBody3D" unique_id=322404306]
+[node name="planter" type="StaticBody3D" unique_id=1691942590]
 script = ExtResource("1_6vr7o")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=762065433]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1668506570]
 mesh = ExtResource("2_xok3o")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=488178033]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=2072326303]
 shape = ExtResource("3_oapey")

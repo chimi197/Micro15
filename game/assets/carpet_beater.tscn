@@ -4,11 +4,11 @@
 [ext_resource type="ArrayMesh" path="res://assets/meshes/carpet_beater.res" id="2_44s84"]
 [ext_resource type="Shape3D" path="res://assets/meshes/carpet_beater_shape.res" id="3_h8d5r"]
 
-[node name="carpet_beater" type="StaticBody3D" unique_id=651574987]
+[node name="carpet_beater" type="StaticBody3D" unique_id=143340110]
 script = ExtResource("1_ala15")
 
-[node name="Model" type="MeshInstance3D" parent="." unique_id=861886873]
+[node name="Model" type="MeshInstance3D" parent="." unique_id=2133774322]
 mesh = ExtResource("2_44s84")
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=1284566636]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=355219126]
 shape = ExtResource("3_h8d5r")
