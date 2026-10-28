@@ -26,8 +26,10 @@ void vertex() {
 
 void fragment() {
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
-	// vertex colours are sRGB
-	ALBEDO = pow(COLOR.rgb, vec3(2.2)) * mix(0.88, 1.08, shade);
+	// vertex colours are sRGB. With MSAA a pixel can be shaded outside a thin
+	// blade, where COLOR extrapolates below 0 and pow() gives NaN, which glow
+	// spreads into white discs; hence the clamp.
+	ALBEDO = pow(clamp(COLOR.rgb, 0.0, 1.0), vec3(2.2)) * mix(0.88, 1.08, shade);
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.1;
 }
