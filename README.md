@@ -37,6 +37,10 @@ families, palette, detail density and how to make new assets) are in
   12:00 (the usual look); the admin tool changes the time or runs the
   clock.
 
+| 8:00 | 20:24 | 23:30 |
+| --- | --- | --- |
+| ![Morning](docs/renders/time_morning.png) | ![Evening](docs/renders/time_evening.png) | ![Night](docs/renders/time_night.png) |
+
 ## Playing (`game/`, Godot 4.7)
 
 Open `game/` in Godot 4.7 and press F5.
