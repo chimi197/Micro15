@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_mw1mh"]
 [ext_resource type="ArrayMesh" path="res://assets/meshes/tree_a.res" id="2_5merk"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/tree_a_far.res" id="3_2bton"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_5dpqj"]
 height = 3.0
@@ -11,7 +12,16 @@ radius = 0.35
 script = ExtResource("1_mw1mh")
 
 [node name="Model" type="MeshInstance3D" parent="." unique_id=1515950577]
+visibility_range_end = 70.0
+visibility_range_end_margin = 4.0
 mesh = ExtResource("2_5merk")
+
+[node name="Far" type="MeshInstance3D" parent="." unique_id=1332277764]
+visibility_range_begin = 70.0
+visibility_range_begin_margin = 4.0
+visibility_range_end = 500.0
+visibility_range_end_margin = 4.0
+mesh = ExtResource("3_2bton")
 
 [node name="Collision" type="CollisionShape3D" parent="." unique_id=1364878642]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)

@@ -12,7 +12,8 @@
 ## (scripts/admin.gd), a scene of its own.
 ##
 ## Run normally to walk around. Run with `-- --shots` to save preview
-## screenshots to ../docs/renders/<kind>/ and quit, or with `-- --selftest` to
+## screenshots to ../docs/renders/<kind>/ and quit (`-- --shots map_edge
+## assets` takes only those), or with `-- --selftest` to
 ## drive the player through every move and print what the animations did.
 extends Node3D
 
@@ -75,7 +76,11 @@ func _take_shots() -> void:
 	cam.make_current()
 	var lineup := Node3D.new()
 	add_child(lineup)
+	# `-- --shots kid_front map_edge` takes only the shots named.
+	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return a in SHOTS)
 	for shot_name in SHOTS:
+		if not only.is_empty() and shot_name not in only:
+			continue
 		var shot: Array = SHOTS[shot_name]
 		if shot_name == "assets":
 			_line_up_assets(lineup, Vector3(-52.5, 0.0, 218.1), 66.0)
@@ -99,7 +104,10 @@ func _take_shots() -> void:
 		var t0 := Time.get_ticks_usec()
 		for i in 30:
 			await get_tree().process_frame
-		print("%-16s %.1f ms a frame" % [shot_name, (Time.get_ticks_usec() - t0) / 30000.0])
+		print("%-16s %.1f ms a frame, %d draw calls, %.2fM triangles" % [shot_name,
+				(Time.get_ticks_usec() - t0) / 30000.0,
+				Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+				Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1e6])
 		get_viewport().get_texture().get_image().save_png(render_path(shot_name))
 	get_tree().quit()
 
@@ -510,7 +518,12 @@ func _test_tools() -> void:
 	var on_roads: int = Admin.remove_props_on_roads()
 	Admin.undo()
 	print("map things on roads: %d (undone)" % on_roads)
-	# a placed bush (no collision): still picked, so it can be removed
+	# a placed bush (no collision): still picked, so it can be removed. The
+	# things placed in the level are set aside, so none stands in the way.
+	var set_aside: Array[Node] = $Placed.get_children()
+	for n in set_aside:
+		$Placed.remove_child(n)
+	await get_tree().physics_frame
 	var placed_bush: Node3D = load("res://assets/bush_a.tscn").instantiate()
 	$Placed.add_child(placed_bush)
 	placed_bush.global_position = Vector3(-30.0, 0.13, 220.6)
@@ -518,6 +531,8 @@ func _test_tools() -> void:
 	var pb: Dictionary = Admin.pick_ray(eye, (Vector3(-30.0, 0.5, 220.6) - eye).normalized())
 	print("pick placed bush on the street: %s" % ("found" if pb.ref.get("node") == placed_bush else "MISSED %s" % pb.ref))
 	placed_bush.free()
+	for n in set_aside:
+		$Placed.add_child(n)
 	var spot := Vector2(-30.0, 220.6)       # the street in front of the player
 	var before := grass._lawn(spot.x, spot.y)
 	grass.paint(spot.x, spot.y, 3.0, true)

@@ -2,9 +2,19 @@
 
 [ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_38afs"]
 [ext_resource type="ArrayMesh" path="res://assets/meshes/bush_a.res" id="2_m210a"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/bush_a_far.res" id="3_hkq3a"]
 
 [node name="bush_a" type="StaticBody3D" unique_id=1228670139]
 script = ExtResource("1_38afs")
 
 [node name="Model" type="MeshInstance3D" parent="." unique_id=1302159109]
+visibility_range_end = 70.0
+visibility_range_end_margin = 4.0
 mesh = ExtResource("2_m210a")
+
+[node name="Far" type="MeshInstance3D" parent="." unique_id=2070831683]
+visibility_range_begin = 70.0
+visibility_range_begin_margin = 4.0
+visibility_range_end = 147.35327
+visibility_range_end_margin = 4.0
+mesh = ExtResource("3_hkq3a")

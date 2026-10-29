@@ -10,6 +10,8 @@ size = Vector3(1.3, 0.9455317, 0.6750001)
 script = ExtResource("1_rv7vk")
 
 [node name="Model" type="MeshInstance3D" parent="." unique_id=857944721]
+visibility_range_end = 120.0
+visibility_range_end_margin = 4.0
 mesh = ExtResource("2_45vi8")
 
 [node name="Collision" type="CollisionShape3D" parent="." unique_id=221242467]

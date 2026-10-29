@@ -3,8 +3,9 @@
 ## The building details of the map (windows, balconies, air conditioners...)
 ## become scenes in res://assets/details/, without collision (like on the
 ## map) except the entrance stairs. The map editor lists these scenes, and
-## they can be dragged into any level in the editor. The "_far" meshes
-## (lighter trees and bushes for the distance) are left out.
+## they can be dragged into any level in the editor. A tree or bush with a
+## "_far" mesh (a lighter one for the distance) switches to it past FAR_FROM,
+## like the map's own, and small things stop drawing sooner than big ones.
 ##
 ##   godot --headless --path game --script res://tools/make_assets.gd
 extends SceneTree
@@ -26,6 +27,8 @@ const SOLID_DETAILS := ["entrance"]
 ## things that are solid as a whole: their bounding box
 const BOXES := ["hedge", "kiosk", "mini_market", "drinks_fridge", "ice_cream_freezer", "recycling_bins",
 	"electric_box", "advert_column"]
+## where the "_far" mesh takes over, as on the map (Props.far_from)
+const FAR_FROM := 70.0
 
 
 func _init() -> void:
@@ -34,16 +37,18 @@ func _init() -> void:
 	var made := []
 	for src: String in SOURCES:
 		var root: Node = load(src).instantiate()
+		var meshes := {}
 		for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
-			if String(mi.name).ends_with("_far"):
-				continue
-			made.append(_make(String(mi.name), mi.mesh, SOURCES[src]))
+			meshes[String(mi.name)] = mi.mesh
+		for asset: String in meshes:
+			if not asset.ends_with("_far"):
+				made.append(_make(asset, meshes[asset], meshes.get(asset + "_far"), SOURCES[src]))
 		root.free()
 	print("assets: ", made)
 	quit()
 
 
-func _make(asset: String, mesh: Mesh, folder: String) -> String:
+func _make(asset: String, mesh: Mesh, far_mesh: Mesh, folder: String) -> String:
 	var mesh_path := "res://assets/meshes/%s.res" % asset
 	ResourceSaver.save(mesh, mesh_path)
 	mesh = load(mesh_path)
@@ -56,6 +61,25 @@ func _make(asset: String, mesh: Mesh, folder: String) -> String:
 	body.add_child(model)
 	model.owner = body
 	var detail := folder == "details/"
+	# How far it draws: building details as far as on the map, other things
+	# by size, from 120 m for a bollard to 500 m for a tree or a shop.
+	var aabb := mesh.get_aabb()
+	var view_range := 450.0 if detail else clampf(80.0 * maxf(aabb.size.x, maxf(aabb.size.y, aabb.size.z)), 120.0, 500.0)
+	model.visibility_range_end = view_range
+	model.visibility_range_end_margin = 4.0
+	if far_mesh:
+		var far_path := "res://assets/meshes/%s_far.res" % asset
+		ResourceSaver.save(far_mesh, far_path)
+		var far := MeshInstance3D.new()
+		far.name = "Far"
+		far.mesh = load(far_path)
+		far.visibility_range_begin = FAR_FROM
+		far.visibility_range_begin_margin = 4.0
+		far.visibility_range_end = view_range
+		far.visibility_range_end_margin = 4.0
+		model.visibility_range_end = FAR_FROM
+		body.add_child(far)
+		far.owner = body
 	if not asset in NO_COLLISION and (not detail or asset in SOLID_DETAILS):
 		var shape := CollisionShape3D.new()
 		shape.name = "Collision"
@@ -66,7 +90,6 @@ func _make(asset: String, mesh: Mesh, folder: String) -> String:
 			shape.shape = cyl
 			shape.position.y = 1.5
 		elif asset in BOXES:
-			var aabb := mesh.get_aabb()
 			var box := BoxShape3D.new()
 			box.size = aabb.size
 			shape.shape = box

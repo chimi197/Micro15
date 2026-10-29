@@ -8,6 +8,8 @@
 script = ExtResource("1_s1ru8")
 
 [node name="Model" type="MeshInstance3D" parent="." unique_id=740096152]
+visibility_range_end = 192.0
+visibility_range_end_margin = 4.0
 mesh = ExtResource("2_fmj5x")
 
 [node name="Collision" type="CollisionShape3D" parent="." unique_id=1302354078]

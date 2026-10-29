@@ -20,7 +20,7 @@ extends Node3D
 signal changed(area: Rect2)
 
 const CELL := 2.0
-const CHUNK := 32.0
+const CHUNK := 64.0
 const BUILDING_MARGIN := 1.5           ## metres of flat ground kept round a building
 const EDGE_MARGIN := 4.0               ## and inside the edge of the playable area
 const MAX_HEIGHT := 30.0
@@ -230,6 +230,11 @@ func _find_chunks() -> void:
 		var parts := String(mi.name).split("_")
 		if parts.size() == 3:
 			_chunks[Vector2i(int(parts[1]), int(parts[2]))] = mi
+			# Flat ground needs no shadow pass; a chunk with hills gets one.
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var outer := g.find_child("ground_outer", true, false) as GeometryInstance3D
+	if outer:
+		outer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _rebuild_chunk(mi: MeshInstance3D) -> void:
@@ -241,6 +246,7 @@ func _rebuild_chunk(mi: MeshInstance3D) -> void:
 	var to_world := mi.global_transform
 	var to_local := to_world.affine_inverse()
 	var mesh := ArrayMesh.new()
+	var hilly := false
 	for surface: Array in _base[mi]:
 		var arrays: Array = (surface[0] as Array).duplicate()
 		var verts: PackedVector3Array = (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).duplicate()
@@ -251,6 +257,7 @@ func _rebuild_chunk(mi: MeshInstance3D) -> void:
 			var h := height(w.x, w.z)
 			if h == 0.0 and _h.is_empty():
 				continue
+			hilly = hilly or h != 0.0
 			verts[v] = to_local * Vector3(w.x, w.y + h, w.z)
 			if not normals.is_empty() and normals[v].y > 0.7:
 				normals[v] = to_local.basis * normal(w.x, w.z)
@@ -262,6 +269,8 @@ func _rebuild_chunk(mi: MeshInstance3D) -> void:
 		mesh.surface_set_material(mesh.get_surface_count() - 1, surface[1])
 	mesh.resource_name = mi.mesh.resource_name
 	mi.mesh = mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if hilly \
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _rebuild_collision(mi: MeshInstance3D) -> void:

@@ -19,6 +19,11 @@
   number plate, wall lamp, electricity pole, crossing sign, hydrant,
   manhole cover, advertising column, picnic table, sandbox, seesaw,
   basketball hoop and football goal.
+* Faster drawing: the shapeable ground is cut into 64 m pieces instead of
+  32 m ones, flat ground casts no shadow, placed trees and bushes use the
+  lighter far versions past 70 m, and small placed things stop drawing in
+  the distance. `-- --shots` prints the draw calls and triangles of each
+  shot, and takes shot names to render only those.
 
 ## 2026-10-28 (evening): the playable area, shops and a tidy repository
 

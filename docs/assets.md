@@ -28,7 +28,10 @@ by category, and they can also be dragged into a level in the Godot editor.
 collision. Trees, lamps, poles, bollards, bins and the hydrant get a trunk
 cylinder; the hedge, shops, fridges, cabinets and recycling bins are solid
 boxes; bushes, the manhole cover and the wall things have none; everything
-else gets its exact shape:
+else gets its exact shape. Placed trees and bushes switch to the map's
+lighter far versions past 70 m, and small things stop drawing sooner than
+big ones (from 120 m for a bollard to 500 m for a tree or a shop), so a
+street full of placed things stays quick to draw:
 
 ```python
 # Blender's Python console

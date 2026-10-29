@@ -7,4 +7,6 @@
 script = ExtResource("1_gvb6n")
 
 [node name="Model" type="MeshInstance3D" parent="." unique_id=599396493]
+visibility_range_end = 120.0
+visibility_range_end_margin = 4.0
 mesh = ExtResource("2_pglaj")

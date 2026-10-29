@@ -22,8 +22,8 @@ All positions are in Godot space (x, up, z = -north), centred on MAP_CENTRE.
 The whole neighbourhood is built, so the streets carry on past the edge of
 the playable area (levels/micro15/play_area.json, from the map editor's
 corner pins; scripts/boundary.gd stops the player there). Inside the area
-the ground is cut into 32 m chunks named g_<i>_<j> (chunk i, j covers
-x 32i..32i+32, z 32j..32j+32) and diced into 2 m cells split along their
+the ground is cut into 64 m chunks named g_<i>_<j> (chunk i, j covers
+x 64i..64i+64, z 64j..64j+64) and diced into 2 m cells split along their
 x - z diagonal, so the map editor's terrain tool (scripts/terrain.gd) can
 raise and lower it smoothly; the rest is "ground_outer". footprints.json
 lists every building's outline ({"bld_<id>": [[x, z], ...]}), so the
@@ -109,7 +109,7 @@ def _copy_faces(src, faces):
     return dst
 
 
-def split_ground(objs, poly, col, chunk=32.0, cell=2.0):
+def split_ground(objs, poly, col, chunk=64.0, cell=2.0):
     """Joins the ground objects into "ground_outer" (outside the polygon)
     and diced chunks g_<i>_<j> inside it (see the module docstring)."""
     mats = []

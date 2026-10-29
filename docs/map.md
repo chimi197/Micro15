@@ -27,7 +27,7 @@ writes `levels/micro15/play_area.json`:
 The area is about 24 hectares, with sides of 530, 342, 634 and 495 m, and
 holds 54 of the map's 343 buildings.
 
-Inside the area the ground is cut into 32 m chunks (`g_<i>_<j>` in
+Inside the area the ground is cut into 64 m chunks (`g_<i>_<j>` in
 `ground.glb`) diced into 2 m cells, so the terrain tool can shape it; the
 ground outside is one mesh, `ground_outer`.
 
