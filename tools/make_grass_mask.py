@@ -1,7 +1,6 @@
 """Rasterise where 3D grass may grow in a Godot level.
 
-White = lawn, black = buildings, roads, sidewalks, paths, parking, sand,
-and everything outside the level's play_area.json if it has one.
+White = lawn, black = buildings, roads, sidewalks, paths, parking, sand.
 Pixel (0, 0) is the north-west corner; 1 px = 0.5 m; the image covers a
 square of SIZE metres centred on the level's Godot origin.
 
@@ -62,13 +61,6 @@ def main(level="micro15"):
             r = w / 2
             for x, y in (pts[0], pts[-1]):
                 dr.ellipse((x - r, y - r, x + r, y + r), fill=0)
-    # nothing grows outside the playable area (tools/make_play_area.py)
-    area = os.path.join(ROOT, "game", "levels", level, "play_area.json")
-    if os.path.exists(area):
-        poly = [px((x + CENTRE[0], CENTRE[1] - z)) for x, z in json.load(open(area))["polygon"]]
-        keep = Image.new("L", (n, n), 0)
-        ImageDraw.Draw(keep).polygon(poly, fill=255)
-        img.paste(0, mask=Image.eval(keep, lambda v: 255 - v))
     out = os.path.join(ROOT, "game", "levels", level, "grass_mask.png")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     img.save(out)

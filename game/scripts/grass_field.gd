@@ -5,7 +5,9 @@
 ##
 ## Grass painted or erased with the admin tool's grass brush is kept as a
 ## list of strokes in paint_file ([[x, z, radius, add], ...]) and drawn
-## over the mask when the level loads.
+## over the mask when the level loads. Grass follows the ground's shape
+## (Terrain) and leaves the paths drawn with the map editor (PathNetwork)
+## bare.
 class_name GrassField
 extends Node3D
 
@@ -93,6 +95,8 @@ func _pixel(x: float, z: float) -> Vector2i:
 
 
 func _lawn(x: float, z: float) -> bool:
+	if PathNetwork.covers(x, z):
+		return false
 	var px := _pixel(x, z)
 	if px.x < 0 or px.y < 0 or px.x >= _img.get_width() or px.y >= _img.get_height():
 		return false
@@ -163,6 +167,11 @@ func _stamp(x: float, z: float, radius: float, add: bool) -> void:
 				_img.set_pixel(px, py, colour)
 
 
+## Builds the grass in area again (the ground or the paths changed there).
+func refresh(area: Rect2) -> void:
+	_rebuild(area)
+
+
 ## Frees the chunks touching area (all of them for an empty Rect2) so they
 ## are built again with the new mask.
 func _rebuild(area: Rect2) -> void:
@@ -195,7 +204,7 @@ func _make_chunk(mesh: Mesh, x0: float, z0: float, density: float, scale_range: 
 			continue
 		var s := rng.randf_range(scale_range.x, scale_range.y)
 		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.25), s))
-		transforms.append(Transform3D(basis, Vector3(x, 0.0, z)))
+		transforms.append(Transform3D(basis, Vector3(x, Terrain.height_at(x, z), z)))
 	if transforms.is_empty():
 		return null
 	var mm := MultiMesh.new()

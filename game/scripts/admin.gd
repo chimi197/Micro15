@@ -19,6 +19,10 @@
 ##                point at places when asking for changes.
 ##   Sky & light  presets and sliders for the sun, sky, clouds, fog and
 ##                camera; can be saved as the level's look.
+##   Terrain      raises, lowers, flattens, smooths or resets the ground
+##                inside the playable area (scripts/terrain.gd); trees,
+##                grass, paths and placed things follow it.
+##   Paths        draws sidewalks, footpaths and trails (scripts/paths.gd).
 ## Everywhere: the coordinate grid (H), the map (M), the coordinates under
 ## the mouse in the status bar (Ctrl+C copies them), Go to x, z, undo and
 ## redo (Ctrl+Z / Ctrl+Y). In the game, F4 shows the player's coordinates.
@@ -29,7 +33,8 @@
 ## scene (levels/micro15/placed.tscn), so they can be edited in the Godot
 ## editor as well; taken-out map things in removed_props.json,
 ## removed_details.json and removed_buildings.json; grass in
-## grass_paint.json; pins in pins.json; the look in lighting.json.
+## grass_paint.json; pins in pins.json; the look in lighting.json; the
+## ground's shape in terrain.json; paths in paths.json.
 extends Node
 
 const ASSETS_DIR := "res://assets/"
@@ -44,6 +49,8 @@ const HINTS := {
 	"grass": "Hold left: grow grass   Shift or Clear: clear it   wheel / Z X: brush size",
 	"pins": "Click: drop a pin with a note",
 	"light": "Pick a preset or move the sliders; Save keeps it as the level's look",
+	"terrain": "Hold left: shape the ground   Shift: the opposite (raise / lower)   wheel / Z X: brush size",
+	"paths": "Click: add a point   double click / Enter: finish   Backspace: last point back   Esc: cancel",
 }
 
 var enabled := OS.has_feature("editor")
@@ -82,6 +89,15 @@ var _pins: Array = []
 var _pin_at := Vector3.INF
 var _map_taken := false
 var _slow := 0.0
+var terrain_mode := "raise"
+var terrain_radius := 8.0
+var terrain_strength := 1.5
+var _sculpting := false
+var _sculpt := {}
+var path_type := "sidewalk"
+var path_width := 2.0
+var path_deleting := false
+var _path_points: Array = []                # Vector3, the path being drawn
 
 
 func _ready() -> void:
@@ -195,6 +211,8 @@ func close_editor() -> void:
 	_end_grab(false)
 	_end_painting()
 	_end_brush()
+	_end_sculpt()
+	_path_points.clear()
 	set_tool_ghost(false)
 	active = false
 	_layer.visible = false
@@ -254,6 +272,8 @@ func _process(delta: float) -> void:
 		_paint_grass()
 	if _brushing:
 		_brush_dab()
+	if _sculpting:
+		_sculpt_dab(delta)
 	_update_ghost()
 	_draw_overlay()
 	_slow -= delta
@@ -310,7 +330,23 @@ func _draw_overlay() -> void:
 	elif tool == "remove" and _cursor != Vector3.INF and (Input.is_key_pressed(KEY_SHIFT) or _brushing):
 		ring_at = _cursor
 		radius = brush
+	elif tool == "terrain" and _cursor != Vector3.INF:
+		ring_at = _cursor
+		radius = terrain_radius
+		var t := Terrain.current
+		colour = Color(0.95, 0.55, 0.2) if t and not t.editable(_cursor.x, _cursor.z) else Color(0.45, 0.85, 1.0)
+	elif tool == "paths" and path_deleting and _cursor != Vector3.INF:
+		ring_at = _cursor
+		radius = 0.6
+		var net := PathNetwork.current
+		colour = EditorTheme.DANGER if net and net.path_at(_cursor.x, _cursor.z) >= 0 else Color(1, 1, 1, 0.6)
 	_overlay.show_ring(ring_at, radius, colour)
+	var line := []
+	if tool == "paths" and not _path_points.is_empty():
+		line = _path_points.duplicate()
+		if _cursor != Vector3.INF:
+			line.append(_cursor)
+	_overlay.show_line(line, Color(1.0, 0.85, 0.3))
 	_overlay.update_labels(_camera)
 
 
@@ -379,6 +415,8 @@ func _mouse_button(mb: InputEventMouseButton) -> void:
 					_yaw = wrapf(_yaw + (ROTATE_STEP if up else -ROTATE_STEP), -PI, PI)
 			elif tool == "grass":
 				_set_grass_brush(grass_brush * (1.1 if up else 0.9))
+			elif tool == "terrain":
+				ui.terrain_radius_slider.value = terrain_radius * (1.1 if up else 0.9)
 			elif tool == "remove" and mb.shift_pressed:
 				ui.brush_slider.value = brush * (1.1 if up else 0.9)
 			else:
@@ -411,6 +449,10 @@ func _left_down(mb: InputEventMouseButton) -> void:
 					_remove_refs([p.ref], "Remove " + _ref_name(p.ref))
 		"grass":
 			_start_painting(-1 if _grass_clearing() else 1)
+		"terrain":
+			_start_sculpt()
+		"paths":
+			_path_click(mb)
 		"pins":
 			var p := _pick(mb.position)
 			if p.point != Vector3.INF:
@@ -421,6 +463,7 @@ func _left_down(mb: InputEventMouseButton) -> void:
 func _left_up(_mb: InputEventMouseButton) -> void:
 	_end_painting()
 	_end_brush()
+	_end_sculpt()
 	if not _grab.is_empty() and _grab.drag:
 		_end_grab(true)
 	elif tool == "select" and not _press.is_empty() and not _press.moved:
@@ -461,10 +504,17 @@ func _key(event: InputEventKey) -> bool:
 	if event.echo and not event.keycode in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_PAGEUP, KEY_PAGEDOWN]:
 		return false
 	match event.keycode:
-		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6:
+		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8:
 			set_tool(EditorUI.TOOLS[event.keycode - KEY_1][0])
+		KEY_ENTER, KEY_KP_ENTER:
+			if tool != "paths":
+				return false
+			_finish_path()
 		KEY_ESCAPE:
-			if not _grab.is_empty():
+			if not _path_points.is_empty():
+				_path_points.clear()
+				ui.say("Path cancelled")
+			elif not _grab.is_empty():
 				_end_grab(false)
 			elif ui.pin_popup.visible or ui.keys_panel.visible:
 				ui.pin_popup.visible = false
@@ -472,7 +522,9 @@ func _key(event: InputEventKey) -> bool:
 			else:
 				clear_selection()
 		KEY_DELETE, KEY_BACKSPACE:
-			if not _selection.is_empty():
+			if tool == "paths" and not _path_points.is_empty():
+				_path_points.pop_back()
+			elif not _selection.is_empty():
 				delete_selected()
 			elif not _hover.is_empty() and tool == "remove":
 				_remove_refs([_hover], "Remove " + _ref_name(_hover))
@@ -492,6 +544,8 @@ func _key(event: InputEventKey) -> bool:
 				_scale = clampf(_scale * (1.1 if bigger else 0.9), 0.1, 10.0)
 			elif tool == "grass":
 				_set_grass_brush(grass_brush * (1.25 if bigger else 0.8))
+			elif tool == "terrain":
+				ui.terrain_radius_slider.value = terrain_radius * (1.25 if bigger else 0.8)
 			elif tool == "remove":
 				ui.brush_slider.value = brush * (1.25 if bigger else 0.8)
 		KEY_F:
@@ -525,6 +579,8 @@ func _key(event: InputEventKey) -> bool:
 
 func set_tool(t: String) -> void:
 	_end_grab(false)
+	_end_sculpt()
+	_path_points.clear()
 	tool = t
 	ui.show_tool(t)
 	_hover = {}
@@ -1346,6 +1402,124 @@ func _end_painting() -> void:
 	var strokes := field.strokes_after(start)
 	_commit("Grow grass" if grew else "Clear grass", func() -> void: field.add_strokes(strokes),
 			func() -> void: field.truncate_strokes(start), true)
+
+
+# ----------------------------------------------------------------------------
+# Terrain
+# ----------------------------------------------------------------------------
+func _start_sculpt() -> void:
+	var t := Terrain.current
+	if t == null:
+		ui.say("This level's ground cannot be shaped")
+		return
+	if _cursor == Vector3.INF:
+		return
+	_sculpting = true
+	_sculpt = {"before": t.snapshot(), "target": t.height(_cursor.x, _cursor.z), "area": Rect2(), "since": 0.0}
+	if not t.editable(_cursor.x, _cursor.z):
+		ui.say("The ground stays flat under and round buildings and along the edge of the map")
+
+
+func _sculpt_dab(delta: float) -> void:
+	var t := Terrain.current
+	if t == null or _cursor == Vector3.INF:
+		return
+	var mode := terrain_mode
+	if Input.is_key_pressed(KEY_SHIFT) and mode in ["raise", "lower"]:
+		mode = "lower" if mode == "raise" else "raise"
+	t.brush(mode, _cursor.x, _cursor.z, terrain_radius, terrain_strength, minf(delta, 0.1), _sculpt.target)
+	var r := Rect2(_cursor.x - terrain_radius, _cursor.z - terrain_radius, terrain_radius * 2.0,
+			terrain_radius * 2.0)
+	_sculpt.area = r if not (_sculpt.area as Rect2).has_area() else (_sculpt.area as Rect2).merge(r)
+	_sculpt.since += delta
+	if _sculpt.since > 0.06:
+		_sculpt.since = 0.0
+		t.update()
+
+
+## Ends a stroke: collision, grass and props catch up, placed things in
+## the stroke move up or down with the ground, all as one undo step.
+func _end_sculpt() -> void:
+	if not _sculpting:
+		return
+	_sculpting = false
+	var t := Terrain.current
+	if t == null:
+		return
+	t.finish_stroke()
+	var area: Rect2 = (_sculpt.area as Rect2).grow(Terrain.CELL * 2.0)
+	if not area.has_area():
+		return
+	var before: Dictionary = _sculpt.before
+	var after := t.snapshot()
+	var moves := []
+	var root := _placed_root()
+	if root:
+		for n: Node in root.get_children():
+			if not n is Node3D:
+				continue
+			var p := (n as Node3D).global_position
+			if not area.has_point(Vector2(p.x, p.z)):
+				continue
+			var dh := t.height(p.x, p.z) - Terrain.height_in(before, p.x, p.z)
+			if absf(dh) > 0.001:
+				moves.append([n, (n as Node3D).transform, (n as Node3D).transform.translated(Vector3(0, dh, 0))])
+	var set_moves := func(which: int) -> void:
+		for m: Array in moves:
+			if is_instance_valid(m[0]):
+				(m[0] as Node3D).transform = m[which]
+		if not moves.is_empty():
+			_save_placed()
+	set_moves.call(2)
+	var redo_fn := func() -> void:
+		t.restore(area, after)
+		set_moves.call(2)
+	var undo_fn := func() -> void:
+		t.restore(area, before)
+		set_moves.call(1)
+	_commit("Shape the ground", redo_fn, undo_fn, true)
+
+
+# ----------------------------------------------------------------------------
+# Paths
+# ----------------------------------------------------------------------------
+func _path_click(mb: InputEventMouseButton) -> void:
+	var net := PathNetwork.current
+	if net == null:
+		ui.say("This level has no paths")
+		return
+	if path_deleting:
+		var i := net.path_at(_cursor.x, _cursor.z) if _cursor != Vector3.INF else -1
+		if i < 0:
+			ui.say("No path there")
+			return
+		var data: Dictionary = (net.paths[i] as Dictionary).duplicate(true)
+		_commit("Remove " + PathNetwork.TYPES[data.type].name.to_lower(), func() -> void: net.remove_path(i),
+				func() -> void: net.insert_path(i, data.duplicate(true)))
+		return
+	if _cursor == Vector3.INF:
+		return
+	if mb.double_click:
+		_finish_path()
+		return
+	_path_points.append(_cursor)
+
+
+func _finish_path() -> void:
+	var net := PathNetwork.current
+	if net == null or _path_points.is_empty():
+		return
+	if _path_points.size() < 2:
+		ui.say("A path needs at least two points")
+		return
+	var pts := []
+	for p: Vector3 in _path_points:
+		pts.append([snappedf(p.x, 0.01), snappedf(p.z, 0.01)])
+	var data := {"type": path_type, "width": snappedf(path_width, 0.1), "points": pts}
+	var i := net.paths.size()
+	_commit("Draw " + PathNetwork.TYPES[path_type].name.to_lower(),
+			func() -> void: net.insert_path(i, data.duplicate(true)), func() -> void: net.remove_path(i))
+	_path_points.clear()
 
 
 # ----------------------------------------------------------------------------

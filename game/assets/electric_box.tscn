@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_xdvqm"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/electric_box.res" id="2_ue4w8"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5503q"]
+size = Vector3(1.02, 1.51, 0.5)
+
+[node name="electric_box" type="StaticBody3D" unique_id=348804959]
+script = ExtResource("1_xdvqm")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=259158987]
+mesh = ExtResource("2_ue4w8")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=38909902]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.755, 0)
+shape = SubResource("BoxShape3D_5503q")

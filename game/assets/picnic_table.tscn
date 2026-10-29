@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_0d741"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/picnic_table.res" id="2_j15mr"]
+[ext_resource type="Shape3D" path="res://assets/meshes/picnic_table_shape.res" id="3_guc3i"]
+
+[node name="picnic_table" type="StaticBody3D" unique_id=881864409]
+script = ExtResource("1_0d741")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=494309870]
+mesh = ExtResource("2_j15mr")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1097107522]
+shape = ExtResource("3_guc3i")

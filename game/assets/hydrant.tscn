@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_2bouq"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/hydrant.res" id="2_ctpmd"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_hnhgf"]
+height = 3.0
+radius = 0.12
+
+[node name="hydrant" type="StaticBody3D" unique_id=1169782681]
+script = ExtResource("1_2bouq")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1893646076]
+mesh = ExtResource("2_ctpmd")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=188271535]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("CylinderShape3D_hnhgf")

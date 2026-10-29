@@ -73,7 +73,7 @@ const PALETTE := {
 	"C3_slab": "#cfc8b8", "C3_roof": "#7d7a74", "C3_roof_tile": "#b0583f", "C3_roof_dark": "#6a4a3e",
 	# ground
 	"C3_asphalt": "#65686f", "C3_parking": "#6f727a", "C3_pavement": "#cfc7b6", "C3_kerb": "#a9a194",
-	"C3_path": "#d6c49a", "C3_sand": "#dcc595", "C3_line": "#ebe6d6", "C3_lawn": "#84a656",
+	"C3_path": "#d6c49a", "C3_path_trail": "#b39467", "C3_sand": "#dcc595", "C3_line": "#ebe6d6", "C3_lawn": "#84a656",
 	"C3_pitch": "#6f9a4e",
 	# foliage
 	"C3_leaf_a": "#5f9748", "C3_leaf_b": "#77a84c", "C3_leaf_c": "#4e8443", "C3_poplar": "#4a7f45",

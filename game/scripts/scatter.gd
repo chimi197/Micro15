@@ -12,6 +12,9 @@
 ## from there on. Distances count from the middle of a cell, so props use
 ## small cells.
 ##
+## Props stand on the ground shaped with the map editor's terrain tool
+## (scripts/terrain.gd): follow_ground() lifts them to it.
+##
 ## Every placement is a record the map editor (scripts/admin.gd) can find
 ## under the mouse (pick), take out (remove_record) and put back. Taken out
 ## records are listed in removed_file ({prototype: [[x, z] or [x, y, z],
@@ -152,6 +155,27 @@ func _scatter(mesh: Mesh, placements: Array, view_range: float, shadows: bool, v
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows \
 				else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
+
+
+## Puts the props standing in area (x, z) on the ground's current height.
+func follow_ground(area: Rect2) -> void:
+	if format != "props":
+		return
+	var c0 := _pick_cell(Vector3(area.position.x, 0, area.position.y))
+	var c1 := _pick_cell(Vector3(area.end.x, 0, area.end.y))
+	for cx in range(c0.x, c1.x + 1):
+		for cz in range(c0.y, c1.y + 1):
+			for r: int in _pick_grid.get(Vector2i(cx, cz), []):
+				var t := _rec_xform[r]
+				var y := Terrain.height_at(t.origin.x, t.origin.z)
+				if absf(y - t.origin.y) < 0.001:
+					continue
+				t.origin.y = y
+				_rec_xform[r] = t
+				for link: Array in _rec_links[r]:
+					(link[0] as MultiMesh).set_instance_transform(link[1], _hidden(t) if _rec_removed[r] else t)
+				if _rec_shape[r]:
+					(_rec_shape[r] as CollisionShape3D).position = t.origin + Vector3(0, 1.5, 0)
 
 
 func _hidden(t: Transform3D) -> Transform3D:

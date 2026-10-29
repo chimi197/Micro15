@@ -10,6 +10,12 @@ uniform vec3 patch_light : source_color = vec3(1.08, 1.06, 0.95);
 uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
 uniform float roughness : hint_range(0.0, 1.0) = 0.95;
 uniform float specular : hint_range(0.0, 1.0) = 0.1;
+// far away the lawn can fade into the sky's horizon colour (the outer
+// lawn round the map, scripts/boundary.gd); off by default
+uniform vec3 haze_colour : source_color = vec3(0.78, 0.86, 0.9);
+uniform float haze_start = 500.0;
+uniform float haze_end = 1700.0;
+uniform float haze_max : hint_range(0.0, 1.0) = 0.0;
 
 #include "res://shaders/soft_light.gdshaderinc"
 
@@ -26,7 +32,9 @@ void fragment() {
 	c *= mix(vec3(1.0), patch_dark, smoothstep(0.55, 0.7, n));
 	c *= mix(vec3(1.0), patch_light, 1.0 - smoothstep(0.3, 0.45, n));
 	c *= 0.96 + 0.08 * fine;
-	ALBEDO = c;
+	float haze = smoothstep(haze_start, haze_end, distance(world_pos, CAMERA_POSITION_WORLD)) * haze_max;
+	ALBEDO = c * (1.0 - haze);
+	EMISSION = haze_colour * haze;
 	ROUGHNESS = roughness;
 	SPECULAR = specular;
 }

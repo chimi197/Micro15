@@ -16,12 +16,18 @@ Writes into game/levels/micro15/:
                     version for distance), lamps, benches
     details.json    {prototype: [[x, y, z, yaw, sx, sy, sz, r, g, b], ...]}
     props.json      {prop: [[x, z, yaw, scale], ...]}
+    footprints.json {building: [[x, z], ...]}
 All positions are in Godot space (x, up, z = -north), centred on MAP_CENTRE.
 
-The map is cut to the playable area in levels/micro15/play_area.json
-(tools/make_play_area.py, from the map editor's corner pins): buildings
-whose middle is inside it, ground clipped to its edge, trees and street
-furniture inside it. scripts/boundary.gd walls it in with shadowed blocks.
+The whole neighbourhood is built, so the streets carry on past the edge of
+the playable area (levels/micro15/play_area.json, from the map editor's
+corner pins; scripts/boundary.gd stops the player there). Inside the area
+the ground is cut into 32 m chunks named g_<i>_<j> (chunk i, j covers
+x 32i..32i+32, z 32j..32j+32) and diced into 2 m cells split along their
+x - z diagonal, so the map editor's terrain tool (scripts/terrain.gd) can
+raise and lower it smoothly; the rest is "ground_outer". footprints.json
+lists every building's outline ({"bld_<id>": [[x, z], ...]}), so the
+terrain stays flat under the buildings.
 
     import sys; sys.path.insert(0, r"<repo>/blender")
     import build_map; build_map.run(r"<repo>")
@@ -56,37 +62,136 @@ def play_area(root):
     return [(x + MAP_CENTRE[0], MAP_CENTRE[1] - z) for x, z in poly]
 
 
-def inside(poly, x, y, margin=0.0):
-    """Point (OSM metres) at least margin inside the convex polygon (a
-    negative margin also takes points that far outside)."""
-    if poly is None:
-        return True
-    pairs = list(zip(poly, poly[1:] + poly[:1]))
-    wind = 1.0 if sum(ax * by - bx * ay for (ax, ay), (bx, by) in pairs) > 0 else -1.0
-    for (ax, ay), (bx, by) in pairs:
-        d = ((bx - ax) * (y - ay) - (by - ay) * (x - ax)) / math.hypot(bx - ax, by - ay)
-        if d * wind < margin:
-            return False
-    return True
+def to_game(x, y):
+    return x - MAP_CENTRE[0], -(y - MAP_CENTRE[1])
 
 
-def clip_to(ob, poly):
-    """Cut a mesh object (OSM-metre coordinates) to the polygon."""
-    if poly is None:
-        return
+def _bisect(bm, co, no, clear_outer=False, clear_inner=False):
+    geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+    bmesh.ops.bisect_plane(bm, geom=geom, dist=0.0005, plane_co=Vector(co), plane_no=Vector(no),
+                           clear_outer=clear_outer, clear_inner=clear_inner)
+
+
+def _edges_out(poly):
+    """[(point, outward normal)] of a convex polygon's edges (OSM metres)."""
     cx = sum(p[0] for p in poly) / len(poly)
     cy = sum(p[1] for p in poly) / len(poly)
-    bm = bmesh.new()
-    bm.from_mesh(ob.data)
+    out = []
     for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
         n = Vector((by - ay, -(bx - ax), 0)).normalized()
         if n.dot(Vector((cx - ax, cy - ay, 0))) > 0:
-            n = -n                              # outward
-        geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
-        bmesh.ops.bisect_plane(bm, geom=geom, dist=0.001, plane_co=Vector((ax, ay, 0)), plane_no=n,
-                               clear_outer=True)
-    bm.to_mesh(ob.data)
-    bm.free()
+            n = -n
+        out.append(((ax, ay, 0), n))
+    return out
+
+
+def _copy_faces(src, faces):
+    """A new bmesh holding copies of some faces of src (materials, smooth, UVs)."""
+    dst = bmesh.new()
+    vmap = {}
+    s_uv = src.loops.layers.uv.active
+    d_uv = dst.loops.layers.uv.verify() if s_uv else None
+    for f in faces:
+        vs = []
+        for v in f.verts:
+            if v not in vmap:
+                vmap[v] = dst.verts.new(v.co)
+            vs.append(vmap[v])
+        try:
+            nf = dst.faces.new(vs)
+        except ValueError:
+            continue
+        nf.material_index = f.material_index
+        nf.smooth = f.smooth
+        if s_uv:
+            for a, b in zip(f.loops, nf.loops):
+                b[d_uv].uv = a[s_uv].uv
+    return dst
+
+
+def split_ground(objs, poly, col, chunk=32.0, cell=2.0):
+    """Joins the ground objects into "ground_outer" (outside the polygon)
+    and diced chunks g_<i>_<j> inside it (see the module docstring)."""
+    mats = []
+    big = bmesh.new()
+    for ob in objs:
+        offset = len(big.faces)
+        me = ob.data
+        idx = []
+        for m in me.materials:
+            if m not in mats:
+                mats.append(m)
+            idx.append(mats.index(m))
+        tmp = bmesh.new()
+        tmp.from_mesh(me)
+        for f in tmp.faces:
+            f.material_index = idx[f.material_index] if idx else 0
+        part = _copy_faces(tmp, list(tmp.faces))
+        tmp.free()
+        tmp_me = bpy.data.meshes.new("tmp")
+        part.to_mesh(tmp_me)
+        part.free()
+        big.from_mesh(tmp_me)
+        bpy.data.meshes.remove(tmp_me)
+    for ob in objs:
+        bpy.data.objects.remove(ob, do_unlink=True)
+
+    def make(name, bm):
+        me = bpy.data.meshes.new(name)
+        bm.to_mesh(me)
+        bm.free()
+        for m in mats:
+            me.materials.append(m)
+        ob = bpy.data.objects.new(name, me)
+        col.objects.link(ob)
+        return ob
+
+    edges = _edges_out(poly)
+    # outside: for edge i, the part beyond edge i and inside every edge before it
+    outer = bmesh.new()
+    for i, (co, n) in enumerate(edges):
+        bm = big.copy()
+        _bisect(bm, co, n, clear_inner=True)
+        for co2, n2 in edges[:i]:
+            _bisect(bm, co2, n2, clear_outer=True)
+        tmp_me = bpy.data.meshes.new("tmp")
+        bm.to_mesh(tmp_me)
+        bm.free()
+        outer.from_mesh(tmp_me)
+        bpy.data.meshes.remove(tmp_me)
+    make("ground_outer", outer)
+    inner = big
+    for co, n in edges:
+        _bisect(inner, co, n, clear_outer=True)
+    # chunks, in game coordinates (x east, z south)
+    xs = [to_game(*p)[0] for p in poly]
+    zs = [to_game(*p)[1] for p in poly]
+    for i in range(math.floor(min(xs) / chunk) + 1, math.ceil(max(xs) / chunk)):
+        _bisect(inner, (i * chunk + MAP_CENTRE[0], 0, 0), (1, 0, 0))
+    for j in range(math.floor(min(zs) / chunk) + 1, math.ceil(max(zs) / chunk)):
+        _bisect(inner, (0, MAP_CENTRE[1] - j * chunk, 0), (0, 1, 0))
+    groups = {}
+    for f in inner.faces:
+        c = f.calc_center_median()
+        gx, gz = to_game(c.x, c.y)
+        groups.setdefault((math.floor(gx / chunk), math.floor(gz / chunk)), []).append(f)
+    n = 0
+    k = int(round(chunk / cell))
+    for (i, j), faces in sorted(groups.items()):
+        bm = _copy_faces(inner, faces)
+        x0, z0 = i * chunk, j * chunk
+        for a in range(1, k):
+            _bisect(bm, (x0 + a * cell + MAP_CENTRE[0], 0, 0), (1, 0, 0))
+            _bisect(bm, (0, MAP_CENTRE[1] - (z0 + a * cell), 0), (0, 1, 0))
+        # diagonals x - z = const, i.e. in OSM metres x + y = const
+        for a in range(-k + 1, k):
+            gx, gz = x0 + a * cell, z0                  # a point on the line x - z = x0 - z0 + a*cell
+            _bisect(bm, (gx + MAP_CENTRE[0], MAP_CENTRE[1] - gz, 0), (1, 1, 0))
+        bmesh.ops.triangulate(bm, faces=list(bm.faces))
+        make("g_%d_%d" % (i, j), bm)
+        n += 1
+    inner.free()
+    return n
 
 
 class Details:
@@ -133,6 +238,37 @@ def roof_with_parapet(B, ring, H, m_cap, m_roof, m_inner):
             f.material_index = m_inner
             if f.normal.dot(Vector((cx, cy, 0)) - f.calc_center_median()) < 0:
                 f.normal_flip()
+
+
+def min_rect(ring):
+    """Corners of the minimum-area rectangle around a ring, and how much of
+    it the ring fills (1.0 for a rectangle)."""
+    best = None
+    for i in range(len(ring)):
+        (x1, y1), (x2, y2) = ring[i], ring[(i + 1) % len(ring)]
+        ang = math.atan2(y2 - y1, x2 - x1)
+        c, s_ = math.cos(-ang), math.sin(-ang)
+        us = [x * c - y * s_ for x, y in ring]
+        vs = [x * s_ + y * c for x, y in ring]
+        box = (min(us), max(us), min(vs), max(vs))
+        a = (box[1] - box[0]) * (box[3] - box[2])
+        if best is None or a < best[0]:
+            best = (a, ang, box)
+    a, ang, (u0, u1, v0, v1) = best
+    c, s_ = math.cos(ang), math.sin(ang)
+    corners = [(u * c - v * s_, u * s_ + v * c) for u, v in ((u0, v0), (u1, v0), (u1, v1), (u0, v1))]
+    return corners, abs(bw.polygon_area(ring)) / max(a, 1e-6)
+
+
+def pitched_roof(B, ring, H, rise, m_roof, m_eave, m_wall):
+    """A hip roof when the outline is (nearly) a rectangle; L-, T- and
+    U-shaped outlines get a flat roof with a parapet instead, since one hip
+    roof over them would hang in the air over the inner corners."""
+    rect, fill = min_rect(ring)
+    if len(ring) >= 4 and fill >= 0.92:
+        hip_roof(B, rect, H, rise, m_roof, m_eave)
+    else:
+        roof_with_parapet(B, ring, H, B.mi("slab"), B.mi("roof"), m_wall)
 
 
 def hip_roof(B, ring, H, rise, m_roof, m_eave):
@@ -259,7 +395,7 @@ def build_generic(B, D, ring, kind, levels, rng, t):
         H = levels * 3.0
         m_wall = B.mi("house_" + hexc[1:], hexc)
         walls_shell(B, walls, H, m_wall, B.mi("plinth"), plinth=0.5)
-        hip_roof(B, ring, H, rng.uniform(2.0, 3.0), B.mi("roof_tile", "#c8553d"), B.mi("slab"))
+        pitched_roof(B, ring, H, rng.uniform(2.0, 3.0), B.mi("roof_tile", "#c8553d"), B.mi("slab"), m_wall)
         for w in walls:
             n, bay, m = bays(w, 3.6, 0.9)
             for c in range(n):
@@ -280,7 +416,7 @@ def build_generic(B, D, ring, kind, levels, rng, t):
         H = 9.0
         m_wall = B.mi("church", "#f3ebd9")
         walls_shell(B, walls, H, m_wall, B.mi("plinth"), plinth=0.6)
-        hip_roof(B, ring, H, 5.0, B.mi("church_roof", "#3f6e8c"), B.mi("slab"))
+        pitched_roof(B, ring, H, 5.0, B.mi("church_roof", "#3f6e8c"), B.mi("slab"), m_wall)
         for w in walls:
             n, bay, m = bays(w, 4.0, 1.5)
             for c in range(n):
@@ -531,6 +667,7 @@ def run(root, part="all"):
     if part in ("all", "buildings"):
         scn = fresh("MapBuildings")
         D = Details()
+        footprints = {}
         walls = list(c3.WALLS.values())
         n = 0
         for w in data.ways:
@@ -542,8 +679,9 @@ def run(root, part="all"):
                 continue
             cx = sum(p[0] for p in ring) / len(ring)
             cy = sum(p[1] for p in ring) / len(ring)
-            if not bw.in_extent(cx, cy) or not inside(area, cx, cy):
+            if not bw.in_extent(cx, cy):
                 continue
+            footprints["bld_%d" % w["id"]] = [[round(c, 2) for c in to_game(x, y)] for x, y in ring]
             kind, levels = bw.classify(t, ring)
             rng = random.Random(w["id"])
             B = Builder()
@@ -556,6 +694,7 @@ def run(root, part="all"):
             n += 1
         export(scn, os.path.join(out, "buildings.glb"), list(scn.collection.all_objects))
         json.dump(D.items, open(os.path.join(out, "details.json"), "w"), separators=(",", ":"))
+        json.dump(footprints, open(os.path.join(out, "footprints.json"), "w"), separators=(",", ":"))
         res["buildings"] = n
         res["details"] = {k: len(v) for k, v in D.items.items()}
 
@@ -567,8 +706,9 @@ def run(root, part="all"):
             c3.build_ground(data, scn.collection)
         finally:
             c3.CENTRE, c3.RADIUS = old_c, old_r
+        if area:
+            res["ground_chunks"] = split_ground(list(scn.collection.all_objects), area, scn.collection)
         for ob in scn.collection.all_objects:
-            clip_to(ob, area)
             ob.location = (-MAP_CENTRE[0], -MAP_CENTRE[1], 0)
         export(scn, os.path.join(out, "ground.glb"), list(scn.collection.all_objects))
         res["ground"] = True
@@ -603,8 +743,6 @@ def run(root, part="all"):
                 continue
             if k == "bush_a" and rng.random() < 0.4:
                 k = "bush_b"
-            if not inside(area, ob.location.x, ob.location.y, 0.5):    # after the draw: same bushes as before
-                continue
             props.setdefault(k, []).append([round(ob.location.x - MAP_CENTRE[0], 2),
                                             round(-(ob.location.y - MAP_CENTRE[1]), 2),
                                             round(ob.rotation_euler.z, 3), round(ob.scale.x, 2)])

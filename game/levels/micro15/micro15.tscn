@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://levels/micro15/micro15.gd" id="1_level"]
 [ext_resource type="Environment" path="res://style/world_environment.tres" id="2_env"]
@@ -16,6 +16,8 @@
 [ext_resource type="PackedScene" path="res://player/player.tscn" id="14_player"]
 [ext_resource type="Script" path="res://scripts/sun_cycle.gd" id="15_sun"]
 [ext_resource type="Script" path="res://scripts/boundary.gd" id="16_boundary"]
+[ext_resource type="Script" path="res://scripts/terrain.gd" id="17_terrain"]
+[ext_resource type="Script" path="res://scripts/paths.gd" id="18_paths"]
 
 [sub_resource type="PlaneMesh" id="outer_plane"]
 size = Vector2(4000, 4000)
@@ -121,6 +123,12 @@ script = ExtResource("10_grass")
 mask = ExtResource("11_mask")
 size_m = 1280.0
 paint_file = "res://levels/micro15/grass_paint.json"
+
+[node name="Terrain" type="Node3D" parent="."]
+script = ExtResource("17_terrain")
+
+[node name="Paths" type="Node3D" parent="."]
+script = ExtResource("18_paths")
 
 [node name="Boundary" type="Node3D" parent="."]
 script = ExtResource("16_boundary")

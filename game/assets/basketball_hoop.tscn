@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_e6fts"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/basketball_hoop.res" id="2_chwpx"]
+[ext_resource type="Shape3D" path="res://assets/meshes/basketball_hoop_shape.res" id="3_xkdwn"]
+
+[node name="basketball_hoop" type="StaticBody3D" unique_id=96211387]
+script = ExtResource("1_e6fts")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=48276192]
+mesh = ExtResource("2_chwpx")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=254871178]
+shape = ExtResource("3_xkdwn")

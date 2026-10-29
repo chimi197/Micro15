@@ -2,9 +2,11 @@
 
 ![The playable part of Micro 15 from the south](renders/map/map_south.png)
 
-The main scene, `levels/micro15/micro15.tscn`, is the playable part of the
-Micro 15 neighbourhood in full 3D, built by `blender/build_map.py` from the
-OpenStreetMap extract (`reference/micro15_osm.json`).
+The main scene, `levels/micro15/micro15.tscn`, is the Micro 15
+neighbourhood in full 3D, built by `blender/build_map.py` from the
+OpenStreetMap extract (`reference/micro15_osm.json`). The player can walk
+the playable area set by the corner pins; the rest of the neighbourhood is
+drawn round it, so the streets and blocks carry on past the edge.
 
 ## The playable area
 
@@ -22,28 +24,26 @@ writes `levels/micro15/play_area.json`:
  "roads":   ["Strada Careiului", ...]}
 ```
 
-The area is about 24 hectares, with sides of 530, 342, 634 and 495 m. Inside
-it there are 54 buildings, 323 trees and poplars, 66 bushes, 119 lamps,
-81 benches and about 22,000 building details.
+The area is about 24 hectares, with sides of 530, 342, 634 and 495 m, and
+holds 54 of the map's 343 buildings.
 
-The map is cut to the polygon:
+Inside the area the ground is cut into 32 m chunks (`g_<i>_<j>` in
+`ground.glb`) diced into 2 m cells, so the terrain tool can shape it; the
+ground outside is one mesh, `ground_outer`.
 
-* `build_map.py` keeps the buildings whose middle is inside it, and the
-  trees, bushes, lamps, benches and details inside it. It cuts the ground,
-  roads and sidewalks exactly along the edge.
-* `tools/make_grass_mask.py` grows no grass outside it.
+## The edge (`scripts/boundary.gd`)
 
-## The boundary (`scripts/boundary.gd`)
+![Past the west edge the street carries on](renders/map/map_edge.png)
 
-![The shadowed blocks along the west edge](renders/map/map_edge.png)
-
-The `Boundary` node of the level puts a continuous row of dark, shadowed
-blocks of flats (4 to 10 storeys, flat-shaded, with a faint window grid,
-`shaders/boundary.gdshader`) just outside every side of the polygon, and an
-80 m high wall of collision boxes inside them, so the player can neither
-walk nor jump out. It reads `play_area.json`, so it moves with the corner
-pins, and it is drawn in the Godot editor too. The block depth, lengths,
-storeys and random seed are in its inspector.
+The `Boundary` node puts an invisible wall, 80 m high, just outside every
+side of the area, so the player can neither walk nor jump out, while the
+mapped streets and blocks carry on behind it. Beyond the mapped
+neighbourhood (about 600 m from the middle) a ring of distant blocks of
+flats (`shaders/boundary.gdshader`) reaches out to 1.8 km. They and the
+outer lawn fade into the sky's horizon colour with distance, so the town
+seems to go on to the horizon at any time of day. The wall reads
+`play_area.json`, so it moves with the corner pins; the distant blocks are
+drawn in the Godot editor too.
 
 The self-test (`-- --selftest`) runs and jumps the player at the edge and
 checks they are still inside.
@@ -63,10 +63,16 @@ checks they are still inside.
   behind you (`scripts/grass_field.gd`, mask `grass_mask.png`).
 * **Collision.** Buildings, kerbs, tree trunks and lamp posts are solid.
   Kerbs are low enough to walk up.
+* **Terrain and paths.** `scripts/terrain.gd` shapes the ground chunks from
+  `terrain.json`, keeping the ground flat under buildings (from
+  `footprints.json`) and along the edge. The map's trees, lamps and benches,
+  the grass and the paths follow it. `scripts/paths.gd` builds the
+  sidewalks, footpaths and trails in `paths.json`.
 * **Your edits** made with the map editor are separate files, read when the
   level loads: `placed.tscn`, `removed_props.json`, `removed_details.json`,
-  `removed_buildings.json`, `grass_paint.json`, `pins.json` and
-  `lighting.json` (see [the editor](editor.md)).
+  `removed_buildings.json`, `grass_paint.json`, `pins.json`,
+  `lighting.json`, `terrain.json` and `paths.json` (see
+  [the editor](editor.md)).
 
 ## Rebuilding
 
@@ -90,8 +96,10 @@ python tools/make_grass_mask.py
 ```
 
 `props` reads the tree, bush, lamp and bench positions from
-`micro15_world.blend`, so run it with that file open. The Boundary updates
-by itself the next time the level opens.
+`micro15_world.blend`, so run it with that file open. After moving a corner
+pin, rebuild at least `ground`, since the shapeable chunks follow the area.
+The Boundary updates by itself the next time the level opens, and the
+ground's shape (`terrain.json`) and the paths survive a rebuild.
 
 ## The 3D corner test (`game/levels/corner/`)
 

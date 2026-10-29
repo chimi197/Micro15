@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_gvb6n"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/manhole.res" id="2_pglaj"]
+
+[node name="manhole" type="StaticBody3D" unique_id=512602233]
+script = ExtResource("1_gvb6n")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=599396493]
+mesh = ExtResource("2_pglaj")

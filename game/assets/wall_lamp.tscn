@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_gtq7s"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/wall_lamp.res" id="2_3pv4s"]
+
+[node name="wall_lamp" type="StaticBody3D" unique_id=993923912]
+script = ExtResource("1_gtq7s")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=824892272]
+mesh = ExtResource("2_3pv4s")

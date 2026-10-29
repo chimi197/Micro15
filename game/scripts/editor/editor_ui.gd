@@ -1,5 +1,6 @@
 ## The map editor's screen: tool bar along the top, the active tool's panel
-## on the left (asset browser, remove and grass options, pins, sky & light),
+## on the left (asset browser, remove and grass options, pins, sky & light,
+## terrain and paths),
 ## the inspector of the selection and the map on the right, and the status
 ## bar with the coordinates along the bottom. It only builds and shows the
 ## controls; what they do is in scripts/admin.gd (editor).
@@ -9,6 +10,7 @@ extends Control
 const TOOLS := [
 	["select", "Select", "1"], ["place", "Place", "2"], ["remove", "Remove", "3"],
 	["grass", "Grass", "4"], ["pins", "Pins", "5"], ["light", "Sky & light", "6"],
+	["terrain", "Terrain", "7"], ["paths", "Paths", "8"],
 ]
 ## asset file name: [shown name, category]
 const ASSET_INFO := {
@@ -34,6 +36,13 @@ const ASSET_INFO := {
 	"ice_cream_freezer": ["Ice cream freezer", "Shops"], "fruit_stand": ["Fruit stall", "Shops"],
 	"terrace_table": ["Café table", "Shops"], "bus_stop": ["Bus stop", "Street"],
 	"recycling_bins": ["Recycling bins", "Street"], "clothes_dryer": ["Clothes line", "Play"],
+	"gas_pipe": ["Gas pipe", "Building"], "electric_box": ["Electricity cabinet", "Street"],
+	"wall_sign": ["Street name plate", "Building"], "block_number": ["Block number plate", "Building"],
+	"wall_lamp": ["Wall lamp", "Building"], "utility_pole": ["Electricity pole", "Street"],
+	"crossing_sign": ["Crossing sign", "Street"], "hydrant": ["Hydrant", "Street"],
+	"manhole": ["Manhole cover", "Street"], "advert_column": ["Advertising column", "Street"],
+	"picnic_table": ["Picnic table", "Street"], "sandbox": ["Sandbox", "Play"], "seesaw": ["Seesaw", "Play"],
+	"basketball_hoop": ["Basketball hoop", "Play"], "football_goal": ["Football goal", "Play"],
 }
 const CATEGORIES := ["All", "Plants", "Street", "Shops", "Play", "Building"]
 const MONTHS := ["January", "February", "March", "April", "May", "June", "July", "August", "September",
@@ -79,6 +88,9 @@ var brush_slider: HSlider
 var brush_label: Label
 var grass_brush_slider: HSlider
 var grass_clear: CheckBox
+# terrain / paths
+var terrain_radius_slider: HSlider
+var path_width_slider: HSlider
 # inspector
 var insp_title: Label
 var insp_kind: Label
@@ -236,6 +248,8 @@ func _build_left_panel() -> void:
 	pages["grass"] = _page_grass()
 	pages["pins"] = _page_pins()
 	pages["light"] = _page_light()
+	pages["terrain"] = _page_terrain()
+	pages["paths"] = _page_paths()
 	for p: String in pages:
 		pages[p].size_flags_vertical = Control.SIZE_EXPAND_FILL
 		stack.add_child(pages[p])
@@ -437,6 +451,86 @@ func _page_grass() -> VBoxContainer:
 	grass_clear.text = "Clear grass instead of growing it"
 	grass_clear.focus_mode = Control.FOCUS_NONE
 	v.add_child(grass_clear)
+	return v
+
+
+## A labelled slider row; on_change gets the value.
+func _slider_row(parent: Control, lo: float, hi: float, step: float, value: float, fmt: String,
+		on_change: Callable) -> HSlider:
+	var row := HBoxContainer.new()
+	var slider := HSlider.new()
+	slider.min_value = lo
+	slider.max_value = hi
+	slider.step = step
+	slider.value = value
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.focus_mode = Control.FOCUS_NONE
+	var label := Label.new()
+	label.custom_minimum_size = Vector2(64, 0)
+	label.text = fmt % value
+	slider.value_changed.connect(func(x: float) -> void:
+		label.text = fmt % x
+		on_change.call(x))
+	row.add_child(slider)
+	row.add_child(label)
+	parent.add_child(row)
+	return slider
+
+
+## A row of toggle buttons of which one is down; on_pick gets its key.
+func _choice_row(parent: Control, choices: Array, current: String, on_pick: Callable) -> void:
+	var row := HFlowContainer.new()
+	var group := ButtonGroup.new()
+	for c: Array in choices:
+		var b := Button.new()
+		b.text = c[1]
+		b.toggle_mode = true
+		b.button_group = group
+		b.focus_mode = Control.FOCUS_NONE
+		b.button_pressed = c[0] == current
+		b.pressed.connect(on_pick.bind(c[0]))
+		row.add_child(b)
+	parent.add_child(row)
+
+
+func _page_terrain() -> VBoxContainer:
+	var v := _page()
+	v.add_child(EditorTheme.heading("Terrain"))
+	v.add_child(EditorTheme.hint("Hold the left mouse button to shape the ground inside the playable area. "
+			+ "Raise and Lower pile it up or dig it out (Shift does the opposite), Flatten levels it to the "
+			+ "height where the stroke started, Smooth rounds it off, Reset makes it flat again. Trees, grass, "
+			+ "paths and the things you placed follow the ground. Under and round buildings and along the "
+			+ "edge of the map the ground stays flat (an orange ring)."))
+	_choice_row(v, [["raise", "Raise"], ["lower", "Lower"], ["flatten", "Flatten"], ["smooth", "Smooth"],
+			["reset", "Reset"]], editor.terrain_mode, func(m: String) -> void: editor.terrain_mode = m)
+	v.add_child(EditorTheme.heading("Brush size (wheel, Z / X)"))
+	terrain_radius_slider = _slider_row(v, 2.0, 40.0, 0.5, editor.terrain_radius, "%.1f m",
+			func(x: float) -> void: editor.terrain_radius = x)
+	v.add_child(EditorTheme.heading("Strength"))
+	_slider_row(v, 0.2, 6.0, 0.1, editor.terrain_strength, "%.1f m/s",
+			func(x: float) -> void: editor.terrain_strength = x)
+	return v
+
+
+func _page_paths() -> VBoxContainer:
+	var v := _page()
+	v.add_child(EditorTheme.heading("Paths"))
+	v.add_child(EditorTheme.hint("Click to put down the points of a path, double click or Enter to finish it. "
+			+ "Backspace takes the last point back, Esc cancels. Paths follow the ground and grass makes way "
+			+ "for them; a sidewalk is raised with kerbs, a footpath is paving level with the lawn, a trail "
+			+ "is packed earth."))
+	_choice_row(v, [["sidewalk", "Sidewalk"], ["footpath", "Footpath"], ["trail", "Trail"]], editor.path_type,
+			func(t: String) -> void:
+				editor.path_type = t
+				path_width_slider.value = PathNetwork.TYPES[t].width)
+	v.add_child(EditorTheme.heading("Width"))
+	path_width_slider = _slider_row(v, 0.6, 6.0, 0.1, editor.path_width, "%.1f m",
+			func(x: float) -> void: editor.path_width = x)
+	var del := CheckBox.new()
+	del.text = "Remove paths (click one)"
+	del.focus_mode = Control.FOCUS_NONE
+	del.toggled.connect(func(on: bool) -> void: editor.path_deleting = on)
+	v.add_child(del)
 	return v
 
 
@@ -890,13 +984,14 @@ func _build_keys_panel() -> void:
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 24)
 	for k: Array in [
-		["F1", "open / close the editor"], ["1 - 6", "tools: select, place, remove, grass, pins, sky & light"],
+		["F1", "open / close the editor"], ["1 - 8", "tools: select, place, remove, grass, pins, sky & light, terrain, paths"],
 		["Right mouse + move", "look around"], ["W A S D / arrows", "fly (Shift: faster)"],
 		["Right mouse + Q / E", "down / up"], ["Wheel", "forward / back (with right mouse: flying speed)"],
 		["Click / Shift+click", "select / add to the selection"], ["Drag, or G then click", "move the selection"],
 		["R / Shift+R", "turn by 15 degrees"], ["Arrows, Page Up / Down", "nudge by 10 cm (Shift: 1 m)"],
 		["Delete", "remove"], ["Ctrl+D", "copy"], ["F", "fly to the selection"],
 		["Ctrl+Z / Ctrl+Y", "undo / redo"], ["Ctrl+C", "copy the location under the mouse"],
+		["Double click / Enter", "finish a path (Backspace: last point back)"],
 		["H", "coordinate grid"], ["M", "map"], ["P", "play from here"], ["F12", "screenshot"],
 		["F4 (in the game)", "show the player's coordinates"],
 	]:

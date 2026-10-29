@@ -18,12 +18,14 @@ const SOURCES := {
 ## radius of a 3 m trunk cylinder; everything else gets its exact shape
 const TRUNKS := {
 	"tree_a": 0.35, "tree_b": 0.4, "tree_c": 0.3, "poplar": 0.3, "lamp": 0.15, "tree_pine": 0.5,
-	"tree_birch": 0.25, "bollard": 0.09, "trash_bin": 0.22,
+	"tree_birch": 0.25, "bollard": 0.09, "trash_bin": 0.22, "utility_pole": 0.17, "crossing_sign": 0.04,
+	"hydrant": 0.12,
 }
-const NO_COLLISION := ["bush_a", "bush_b"]
+const NO_COLLISION := ["bush_a", "bush_b", "manhole", "wall_sign", "block_number", "wall_lamp", "gas_pipe"]
 const SOLID_DETAILS := ["entrance"]
 ## things that are solid as a whole: their bounding box
-const BOXES := ["hedge", "kiosk", "mini_market", "drinks_fridge", "ice_cream_freezer", "recycling_bins"]
+const BOXES := ["hedge", "kiosk", "mini_market", "drinks_fridge", "ice_cream_freezer", "recycling_bins",
+	"electric_box", "advert_column"]
 
 
 func _init() -> void:

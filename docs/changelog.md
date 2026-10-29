@@ -1,5 +1,25 @@
 # What has changed
 
+## 2026-10-29: shaping the ground, paths and a seamless edge
+
+* Two new map editor tools. **Terrain** (7) raises, lowers, flattens,
+  smooths and resets the ground inside the playable area; trees, grass,
+  paths and placed things follow it. **Paths** (8) draws sidewalks with
+  kerbs, footpaths and trails.
+* The edge is seamless. The whole neighbourhood is drawn again past the
+  edge of the playable area, with an invisible wall at the edge. Distant
+  blocks of flats and the lawn fade into the horizon beyond the mapped
+  streets. The dark blocks are gone.
+* The slide was missing its chute in the game. The game hides the back of
+  every face, and the chute had been built inside out. Every asset is now
+  built facing outwards and checked that way.
+* Houses with L-, T- and U-shaped outlines get a flat roof instead of a
+  hip roof that floated over their inner corners.
+* 15 more assets: gas pipe, electricity cabinet, street name plate, block
+  number plate, wall lamp, electricity pole, crossing sign, hydrant,
+  manhole cover, advertising column, picnic table, sandbox, seesaw,
+  basketball hoop and football goal.
+
 ## 2026-10-28 (evening): the playable area, shops and a tidy repository
 
 * The map is cut to the area set by the CORNER 1 to 4 pins. It keeps the

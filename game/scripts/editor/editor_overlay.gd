@@ -1,6 +1,6 @@
 ## What the map editor draws in the 3D world: boxes around the selected and
-## the hovered things, the brush ring, the coordinate grid with its labels
-## and the pins. None of it casts shadows or is saved with the level.
+## the hovered things, the brush ring, the path being drawn, the coordinate
+## grid with its labels and the pins. None of it casts shadows or is saved with the level.
 class_name EditorOverlay
 extends Node3D
 
@@ -10,6 +10,8 @@ const GRID_LABEL_REACH := 160.0
 var _boxes: MeshInstance3D
 var _box_mesh := ImmediateMesh.new()
 var _ring: MeshInstance3D
+var _line: MeshInstance3D
+var _line_mesh := ImmediateMesh.new()
 var _grid: MeshInstance3D
 var _labels: Node3D
 var _label_centre := Vector2.INF
@@ -32,6 +34,11 @@ func _ready() -> void:
 	_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_ring.visible = false
 	add_child(_ring)
+	_line = MeshInstance3D.new()
+	_line.mesh = _line_mesh
+	_line.material_override = _line_material()
+	_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_line)
 	_grid = MeshInstance3D.new()
 	var quad := QuadMesh.new()
 	quad.size = Vector2(2, 2)
@@ -89,6 +96,24 @@ func show_ring(at: Vector3, radius: float, colour: Color) -> void:
 	if _ring.visible:
 		_ring.global_transform = Transform3D(Basis.from_scale(Vector3(radius, 0.3, radius)), at + Vector3.UP * 0.05)
 		(_ring.material_override as StandardMaterial3D).albedo_color = colour
+
+
+## A line through points (the path being drawn), with a dot at each point.
+func show_line(points: Array, colour: Color) -> void:
+	_line_mesh.clear_surfaces()
+	if points.size() < 1:
+		return
+	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	_line_mesh.surface_set_color(colour)
+	var up := Vector3.UP * 0.15
+	for i in points.size() - 1:
+		_line_mesh.surface_add_vertex(points[i] + up)
+		_line_mesh.surface_add_vertex(points[i + 1] + up)
+	for p: Vector3 in points:
+		for d: Vector3 in [Vector3(0.3, 0, 0), Vector3(0, 0, 0.3), Vector3(0, 0.6, 0)]:
+			_line_mesh.surface_add_vertex(p + up - d)
+			_line_mesh.surface_add_vertex(p + up + d)
+	_line_mesh.surface_end()
 
 
 func set_grid(on: bool) -> void:

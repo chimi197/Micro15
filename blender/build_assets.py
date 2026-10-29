@@ -6,7 +6,11 @@ bollards, bike racks, planters, hedges, pines and birches), and the shops
 and outdoor things of its streets (a kiosk, a mini market, a shop window
 for the ground floor of a block, a bus stop, a drinks fridge, an ice cream
 freezer, recycling bins, a clothes drying frame, a café table with a
-parasol and a fruit stall).
+parasol and a fruit stall), building things (the yellow gas pipe, an
+electricity cabinet, street name and block plates, a wall lamp) and more
+street and play things (a concrete electricity pole, a crossing sign, a
+hydrant, a manhole cover, an advertising column, a picnic table, a
+sandbox, a seesaw, a basketball hoop and a football goal).
 
 Every asset is one object standing on the origin, facing -Y (the front in
 Godot is +Z), 1 unit = 1 metre. Materials are named like the rest of the
@@ -47,6 +51,8 @@ COLOURS = {
     "goods_f": "#8a5a9e", "goods_g": "#e9853a", "bottle_green": "#3f8f5f", "bottle_brown": "#7a4a2a",
     "fruit_red": "#c8322f", "fruit_orange": "#ef8a2c", "fruit_yellow": "#f2cf3d", "fruit_green": "#86b83f",
     "crate_wood": "#c49a63", "lamp_glass_fridge": "#f4f7f2", "roof_box": "#8f8a82",
+    "yellow_gas": "#e9bf2f", "metal_grey_box": "#a3a8a6", "concrete_pole": "#bdb7aa", "metal_green_col": "#3e6b52",
+    "wood_dark": "#8a5a36", "sand_box": "#e2cc95", "lamp_glass": "#f6f1df",
 }
 
 
@@ -109,6 +115,9 @@ class Kit:
         return list(self.bm.faces)
 
     def end(self):
+        # closed shells face outwards (the game culls back faces, so a shell
+        # turned inside out, as solidify can leave one, would be invisible)
+        bmesh.ops.recalc_face_normals(self.bm, faces=list(self.bm.faces))
         piece, self.bm = self.bm, self.main
         vmap = {v: self.bm.verts.new(v.co) for v in piece.verts}
         src_uv = piece.loops.layers.uv.active
@@ -909,6 +918,297 @@ def fruit_stand(k):
              stripes=8, valance=0.15)
 
 
+# --- building and street things (2026-10-29) --------------------------------
+def gas_pipe(k):
+    """The yellow gas pipe that runs along the plinth of every block: a 3 m
+    run on wall brackets, a riser with an elbow into the wall, a valve and a
+    grey meter box. Its back is on the wall (the origin)."""
+    L, z, out = 3.0, 1.1, -0.09
+    k.pipe([(-L / 2, out, z), (L / 2 - 0.25, out, z), (L / 2 - 0.12, out, z + 0.13), (L / 2 - 0.12, out, 2.4),
+            (L / 2 - 0.12, -0.02, 2.4)], 0.028, "yellow_gas", seg=10)
+    for x in (-L / 2 + 0.2, -0.3, 0.7):
+        k.block((x, -0.045, z), (0.04, 0.09, 0.05), "metal_dark")                     # brackets
+        k.rod((x, out, z - 0.035), (x, out, z + 0.035), 0.034, "metal_dark", seg=8)
+    k.block((L / 2 - 0.12, -0.045, 1.9), (0.04, 0.09, 0.05), "metal_dark")
+    k.rod((L / 2 - 0.12, out - 0.03, 1.6), (L / 2 - 0.12, out - 0.03, 1.68), 0.045, "red", seg=10)      # valve
+    k.rod((L / 2 - 0.12, out - 0.03, 1.64), (L / 2 - 0.12, out - 0.12, 1.64), 0.012, "red", seg=6)
+    k.block((L / 2 - 0.12, out - 0.13, 1.64), (0.14, 0.015, 0.025), "red", bevel=0.005)
+    k.block((-0.6, -0.11, 1.45), (0.42, 0.22, 0.5), "metal_grey", bevel=0.015)      # meter box
+    k.block((-0.6, -0.222, 1.47), (0.18, 0.006, 0.09), "glass_dark")
+    k.rod((-0.75, out, z), (-0.75, out, 1.2), 0.022, "yellow_gas", seg=8)
+    k.text("GAZ", (-0.6, -0.224, 1.3), 0.06, "yellow_gas", depth=0.006)
+
+
+def electric_box(k):
+    """Grey street electricity cabinet ("firidă") on a concrete base: two
+    doors with handles and vents, a lightning warning sign."""
+    W, D, H = 0.9, 0.38, 1.25
+    k.block((0, 0, 0.1), (W + 0.12, D + 0.12, 0.2), "concrete", bevel=0.02)
+    k.block((0, 0, 0.2 + H / 2), (W, D, H), "metal_grey_box", bevel=0.02)
+    k.block((0, 0, 0.2 + H + 0.03), (W + 0.06, D + 0.06, 0.06), "metal_grey_box", bevel=0.015)
+    k.block((0, -D / 2 - 0.003, 0.2 + H / 2), (0.012, 0.008, H - 0.12), "metal_dark")    # door gap
+    for x in (-0.08, 0.08):
+        k.block((x, -D / 2 - 0.02, 0.2 + H * 0.55), (0.03, 0.03, 0.12), "metal_dark", bevel=0.006)
+    for side in (-1, 1):
+        for i in range(5):
+            k.block((side * W / 4, -D / 2 - 0.004, 0.32 + i * 0.05), (0.26, 0.008, 0.02), "metal_dark")
+    k.block((-W / 4, -D / 2 - 0.006, 0.2 + H - 0.25), (0.2, 0.004, 0.18), "sign_yellow")
+    k.begin()                                    # lightning bolt
+    pts = [(-0.01, 0.07), (0.035, 0.07), (0.005, 0.01), (0.035, 0.01), (-0.03, -0.075), (-0.005, -0.015),
+           (-0.035, -0.015)]
+    vs = [k.bm.verts.new((-W / 4 + x, -D / 2 - 0.009, 0.2 + H - 0.25 + z)) for x, z in pts]
+    f = k.bm.faces.new(vs)
+    bmesh.ops.solidify(k.bm, geom=[f], thickness=0.003)
+    k._tag(k.new_faces(), "metal_dark", False)
+    k.end()
+
+
+def wall_sign(k):
+    """Blue enamel street name plate with a white rim, as on the corners of
+    the blocks. Its back is on the wall."""
+    W, H = 0.9, 0.3
+    k.block((0, -0.012, 2.6), (W, 0.024, H), "sign_blue", bevel=0.01)
+    k.block((0, -0.025, 2.6), (W - 0.04, 0.004, H - 0.04), "sign_white")
+    k.block((0, -0.028, 2.6), (W - 0.07, 0.004, H - 0.07), "sign_blue")
+    k.text("ALEEA MILCOV", (0, -0.03, 2.6), 0.085, "sign_white", depth=0.004)
+
+
+def block_number(k):
+    """Block and stairwell plate by an entrance: BL. 15, SC. A. Its back is
+    on the wall."""
+    k.block((0, -0.01, 2.35), (0.42, 0.02, 0.32), "sign_white", bevel=0.01)
+    k.block((0, -0.021, 2.35), (0.38, 0.003, 0.28), "sign_blue")
+    k.text("BL. 15", (0, -0.024, 2.41), 0.075, "sign_white", depth=0.004)
+    k.text("SC. A", (0, -0.024, 2.29), 0.065, "sign_yellow", depth=0.004)
+
+
+def wall_lamp(k):
+    """Lamp over a stairwell door: a wall plate, a bent arm and a round
+    frosted shade. Its back is on the wall."""
+    k.block((0, -0.015, 2.5), (0.14, 0.03, 0.2), "metal_dark", bevel=0.008)
+    k.pipe([(0, -0.03, 2.55), (0, -0.25, 2.62), (0, -0.33, 2.55)], 0.014, "metal_dark", seg=8)
+    k.rod((0, -0.33, 2.56), (0, -0.33, 2.5), 0.07, "metal_dark", seg=16, r1=0.11)
+    k.blob((0, -0.33, 2.47), (0.085, 0.085, 0.06), "lamp_glass", subdiv=2)
+
+
+def utility_pole(k):
+    """Concrete electricity pole of the neighbourhood streets: a tapering
+    pole with a row of holes, a cross arm with insulators, cut-off wires and
+    a street light on a bent arm."""
+    H = 9.0
+    k.begin()
+    bmesh.ops.create_cone(k.bm, cap_ends=True, segments=4, radius1=0.17, radius2=0.09, depth=H)
+    bmesh.ops.transform(k.bm, matrix=Matrix.Translation((0, 0, H / 2)) @ Matrix.Rotation(math.pi / 4, 4, "Z"),
+                        verts=list(k.bm.verts))
+    k._tag(k.new_faces(), "concrete_pole", False)
+    k.end()
+    for i in range(9):                           # the holes, as dark recesses on both faces
+        z = 1.2 + i * 0.75
+        w = 0.17 - (0.08 * z / H)
+        for s in (-1, 1):
+            k.block((0, s * w * 0.72, z), (0.05, 0.01, 0.16), "metal_dark")
+    k.block((0, 0, H - 0.6), (1.6, 0.1, 0.1), "metal_grey", bevel=0.01)              # cross arm
+    for x in (-0.7, -0.25, 0.25, 0.7):
+        k.rod((x, 0, H - 0.55), (x, 0, H - 0.4), 0.025, "metal_grey", seg=8)
+        k.rod((x, 0, H - 0.4), (x, 0, H - 0.3), 0.045, "plastic_white", seg=12)
+        k.pipe([(x, -0.6, H - 0.55), (x, -0.2, H - 0.34), (x, 0, H - 0.3), (x, 0.2, H - 0.34), (x, 0.6, H - 0.55)],
+               0.008, "metal_dark", seg=5)
+    k.pipe([(0, -0.1, 6.3), (0, -0.9, 6.7), (0, -1.6, 6.75)], 0.03, "metal_grey", seg=8)   # light arm
+    k.block((0, -1.72, 6.7), (0.22, 0.5, 0.09), "metal_dark", bevel=0.02)
+    k.block((0, -1.72, 6.65), (0.16, 0.4, 0.02), "lamp_glass")
+    k.block((0, 0.13, 3.0), (0.2, 0.06, 0.3), "metal_grey", bevel=0.01)             # small fuse box
+
+
+def crossing_sign(k):
+    """Pedestrian crossing sign: blue square with a white triangle and a
+    walking figure, on a striped pole."""
+    H = 2.6
+    k.rod((0, 0, 0), (0, 0, H + 0.35), 0.03, "metal_grey", seg=10)
+    k.block((0, -0.035, H), (0.6, 0.02, 0.6), "sign_blue", bevel=0.015)
+    k.block((0, -0.047, H), (0.56, 0.004, 0.56), "sign_white")
+    k.block((0, -0.05, H), (0.53, 0.004, 0.53), "sign_blue")
+    k.begin()
+    vs = [k.bm.verts.new(c) for c in ((-0.22, -0.053, H - 0.19), (0.22, -0.053, H - 0.19), (0, -0.053, H + 0.2))]
+    f = k.bm.faces.new(vs)
+    bmesh.ops.solidify(k.bm, geom=[f], thickness=0.003)
+    k._tag(k.new_faces(), "sign_white", False)
+    k.end()
+    fig, y = "metal_dark", -0.058                # the walking figure
+    k.blob((0.015, y, H + 0.085), (0.03, 0.006, 0.03), fig, subdiv=2)
+    k.pipe([(0.008, y, H + 0.04), (-0.008, y, H - 0.05)], 0.019, fig, seg=8)                  # body
+    k.pipe([(-0.008, y, H - 0.05), (0.03, y, H - 0.1), (0.06, y, H - 0.15)], 0.014, fig, seg=6)    # legs
+    k.pipe([(-0.008, y, H - 0.05), (-0.035, y, H - 0.1), (-0.07, y, H - 0.14)], 0.014, fig, seg=6)
+    k.pipe([(0.005, y, H + 0.025), (0.035, y, H - 0.01), (0.05, y, H - 0.045)], 0.011, fig, seg=6)   # arms
+    k.pipe([(0.005, y, H + 0.025), (-0.03, y, H - 0.005), (-0.045, y, H - 0.04)], 0.011, fig, seg=6)
+    for i in range(5):                           # zebra stripes under the feet
+        k.block((-0.13 + i * 0.065, y, H - 0.172), (0.04, 0.006, 0.018), fig)
+    k.block((0, -0.024, H), (0.58, 0.006, 0.58), "metal_grey")                              # grey back
+    for i in range(6):
+        k.rod((0, 0, 0.3 + i * 0.2), (0, 0, 0.4 + i * 0.2), 0.031, "red" if i % 2 == 0 else "white", seg=10)
+
+
+def hydrant(k):
+    """Red overground fire hydrant with two outlets and a cap."""
+    k.rod((0, 0, 0), (0, 0, 0.08), 0.16, "concrete", seg=16)
+    k.rod((0, 0, 0.08), (0, 0, 0.75), 0.1, "red", seg=16)
+    k.rod((0, 0, 0.72), (0, 0, 0.8), 0.12, "red", seg=16)
+    k.blob((0, 0, 0.8), (0.1, 0.1, 0.08), "red", subdiv=2)
+    k.rod((0, 0, 0.86), (0, 0, 0.92), 0.025, "metal_grey", seg=6)
+    for s in (-1, 1):
+        k.rod((s * 0.08, 0, 0.55), (s * 0.18, 0, 0.55), 0.045, "red", seg=12)
+        k.rod((s * 0.18, 0, 0.55), (s * 0.2, 0, 0.55), 0.055, "metal_grey", seg=12)
+    k.rod((0, -0.08, 0.4), (0, -0.16, 0.4), 0.06, "red", seg=12)
+    k.rod((0, -0.16, 0.4), (0, -0.18, 0.4), 0.07, "metal_grey", seg=12)
+    k.rod((0, 0, 0.3), (0, 0, 0.34), 0.115, "white", seg=16)
+
+
+def manhole(k):
+    """Round cast iron manhole cover with a grid pattern, a little proud of
+    the road."""
+    k.rod((0, 0, 0), (0, 0, 0.02), 0.36, "metal_dark", seg=28)
+    for i in range(-3, 4):
+        k.block((i * 0.08, 0, 0.024), (0.018, 0.56 * math.sqrt(max(0.0, 1 - (i * 0.08 / 0.3) ** 2)) + 0.01, 0.008),
+                "metal_grey")
+    k.rod((0, 0, 0.02), (0, 0, 0.026), 0.34, "metal_dark", seg=28, caps=True, r1=0.335)
+
+
+def advert_column(k):
+    """Round advertising column ("avizier") with posters and a little roof."""
+    R, H = 0.55, 2.8
+    k.rod((0, 0, 0), (0, 0, 0.3), R + 0.06, "concrete", seg=28)
+    k.rod((0, 0, 0.3), (0, 0, H), R, "metal_green_col", seg=28)
+    k.rod((0, 0, H), (0, 0, H + 0.08), R + 0.12, "metal_green_col", seg=28)
+    k.rod((0, 0, H + 0.08), (0, 0, H + 0.4), R + 0.1, "metal_green_col", seg=28, r1=0.08)
+    k.blob((0, 0, H + 0.45), (0.09, 0.09, 0.09), "metal_green_col", subdiv=2)
+    rnd = random.Random(7)
+    cols = ["sign_red", "sign_yellow", "sign_white", "goods_c", "goods_d", "goods_f", "goods_g", "cloth_b"]
+    for i in range(7):                           # posters wrapped round it
+        a0 = i * 2 * math.pi / 7 + 0.05
+        a1 = a0 + 2 * math.pi / 7 - 0.12
+        z0 = 0.5 + rnd.uniform(0, 0.4)
+        z1 = min(H - 0.15, z0 + rnd.uniform(0.9, 1.6))
+        k.begin()
+        seg = 6
+        ring_lo, ring_hi = [], []
+        for j in range(seg + 1):
+            a = a0 + (a1 - a0) * j / seg
+            ring_lo.append(k.bm.verts.new((math.cos(a) * (R + 0.006), math.sin(a) * (R + 0.006), z0)))
+            ring_hi.append(k.bm.verts.new((math.cos(a) * (R + 0.006), math.sin(a) * (R + 0.006), z1)))
+        for j in range(seg):
+            k.bm.faces.new((ring_lo[j], ring_lo[j + 1], ring_hi[j + 1], ring_hi[j]))
+        bmesh.ops.solidify(k.bm, geom=list(k.bm.faces), thickness=0.004)
+        k._tag(k.new_faces(), cols[i % len(cols)], False)
+        k.end()
+        am = (a0 + a1) / 2                       # a title band on each poster
+        k.block((math.cos(am) * (R + 0.012), math.sin(am) * (R + 0.012), z1 - 0.18),
+                ((a1 - a0) * R * 0.7, 0.006, 0.1), "sign_white" if cols[i % len(cols)] != "sign_white" else "sign_red",
+                rot_z=am + math.pi / 2)
+
+
+def picnic_table(k):
+    """Wooden picnic table with its benches joined on, for the parks."""
+    L = 1.8
+    for x in (-L / 2 + 0.2, L / 2 - 0.2):
+        for s in (-1, 1):                        # A-frame legs
+            k.block((x, s * 0.3, 0.37), (0.07, 0.07, 0.82), "wood_dark", rot_z=0, bevel=0.01, segments=1)
+        k.block((x, 0, 0.42), (0.07, 1.5, 0.08), "wood_dark", bevel=0.01, segments=1)
+    for i in range(4):
+        k.block((0, -0.27 + i * 0.18, 0.76), (L, 0.16, 0.045), "wood", bevel=0.01, segments=1)
+    for s in (-1, 1):
+        for i in range(2):
+            k.block((0, s * (0.58 + i * 0.13), 0.46), (L, 0.12, 0.04), "wood", bevel=0.01, segments=1)
+
+
+def sandbox(k):
+    """Square wooden sandbox with seats on the corners, full of sand, and a
+    forgotten bucket and spade."""
+    S = 2.4
+    for s in (-1, 1):
+        k.block((0, s * S / 2, 0.15), (S + 0.14, 0.14, 0.3), "wood", bevel=0.015, segments=1)
+        k.block((s * S / 2, 0, 0.15), (0.14, S - 0.14, 0.3), "wood", bevel=0.015, segments=1)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            k.begin()                            # triangular corner seat
+            c = (sx * S / 2, sy * S / 2)
+            vs = [k.bm.verts.new((c[0], c[1], 0.31)), k.bm.verts.new((c[0] - sx * 0.45, c[1], 0.31)),
+                  k.bm.verts.new((c[0], c[1] - sy * 0.45, 0.31))]
+            f = k.bm.faces.new(vs)
+            bmesh.ops.solidify(k.bm, geom=[f], thickness=0.035)
+            k._tag(k.new_faces(), "wood", False)
+            k.end()
+    k.begin()                                    # sand, a little heaped
+    bmesh.ops.create_grid(k.bm, x_segments=12, y_segments=12, size=(S - 0.14) / 2)
+    rnd = random.Random(3)
+    for v in k.bm.verts:
+        e = max(abs(v.co.x), abs(v.co.y)) / ((S - 0.14) / 2)
+        v.co.z = 0.2 + (1 - e ** 3) * (0.05 + rnd.uniform(0, 0.03)) + (0.06 * math.exp(-((v.co.x - 0.3) ** 2 + (v.co.y + 0.2) ** 2) * 3))
+    k._tag(k.new_faces(), "sand_box", True)
+    k.end()
+    k.rod((0.5, 0.4, 0.24), (0.5, 0.4, 0.4), 0.07, "red", seg=14, r1=0.09)            # bucket
+    k.pipe([(0.43, 0.4, 0.4), (0.5, 0.4, 0.47), (0.57, 0.4, 0.4)], 0.006, "red", seg=5, caps=False)
+    k.pipe([(-0.4, -0.3, 0.27), (-0.15, -0.2, 0.36)], 0.012, "yellow", seg=6)            # spade
+    k.block((-0.47, -0.33, 0.27), (0.1, 0.12, 0.012), "yellow", rot_z=0.4)
+
+
+def seesaw(k):
+    """Playground seesaw: a beam on a pivot with handles and tyre bumpers."""
+    L = 3.2
+    k.block((0, 0, 0.27), (0.12, 0.42, 0.54), "metal_red", bevel=0.02)                  # pivot stand
+    k.block((0, 0, 0.03), (0.4, 0.55, 0.06), "concrete")
+    k.rod((0, -0.25, 0.58), (0, 0.25, 0.58), 0.04, "metal_grey", seg=10)
+    tilt = math.radians(8)
+    for i in range(2):
+        k.block((0, -0.1 + i * 0.2, 0.62), (L, 0.16, 0.06), "wood", rot_z=0, bevel=0.012, segments=1)
+    for s in (-1, 1):
+        x = s * (L / 2 - 0.4)
+        for y in (-0.15, 0.15):
+            k.pipe([(x, y, 0.65), (x, y, 0.92), (x - s * 0.06, y, 0.95)], 0.016, "metal_blue", seg=8)
+        k.rod((x - s * 0.06, -0.2, 0.95), (x - s * 0.06, 0.2, 0.95), 0.02, "metal_blue", seg=8)
+        k.rod((s * (L / 2 - 0.15), 0, 0.0), (s * (L / 2 - 0.15), 0, 0.12), 0.16, "rubber", seg=16)
+    # tilt the beam: everything above the pivot rotates a little (one end down)
+    for v in k.bm.verts:
+        if v.co.z > 0.56 and abs(v.co.x) > 0.07:
+            r = Matrix.Translation((0, 0, 0.6)) @ Matrix.Rotation(tilt, 4, "Y") @ Matrix.Translation((0, 0, -0.6))
+            v.co = r @ v.co
+
+
+def basketball_hoop(k):
+    """Street basketball hoop: a bent steel post, a white backboard with a
+    red square, an orange ring with a chain net."""
+    k.block((0, 0.9, 0.05), (0.5, 0.5, 0.1), "concrete", bevel=0.02)
+    k.pipe([(0, 0.9, 0.05), (0, 0.9, 2.6), (0, 0.6, 3.0), (0, 0.35, 3.0)], 0.06, "metal_blue", seg=12)
+    k.block((0, 0.3, 3.15), (1.8, 0.05, 1.05), "white", bevel=0.015)
+    k.block((0, 0.27, 3.0), (0.6, 0.01, 0.45), "red")
+    k.block((0, 0.268, 3.0), (0.54, 0.01, 0.39), "white")
+    k.block((0, 0.18, 2.85), (0.06, 0.2, 0.04), "metal_red")
+    ring = [(0.23 * math.cos(a), -0.05 + 0.23 * math.sin(a), 2.85) for a in (2 * math.pi * i / 20 for i in range(21))]
+    k.pipe(ring, 0.01, "metal_red", seg=6, caps=False)
+    for i in range(10):                          # chain net
+        a = 2 * math.pi * i / 10
+        k.pipe([(0.23 * math.cos(a), -0.05 + 0.23 * math.sin(a), 2.85),
+                (0.15 * math.cos(a + 0.4), -0.05 + 0.15 * math.sin(a + 0.4), 2.45)], 0.004, "metal_grey", seg=4)
+
+
+def football_goal(k):
+    """Small metal football goal of the school yards, with a chain-link back."""
+    W, H, D = 3.0, 2.0, 1.0
+    for x in (-W / 2, W / 2):
+        k.rod((x, 0, 0), (x, 0, H), 0.04, "white", seg=12)
+        k.pipe([(x, 0, H), (x, D * 0.3, H), (x, D, 0)], 0.025, "white", seg=8)
+        k.rod((x, 0, 0.02), (x, D, 0.02), 0.025, "white", seg=8)
+    k.rod((-W / 2, 0, H), (W / 2, 0, H), 0.04, "white", seg=12)
+    k.rod((-W / 2, D * 0.3, H), (W / 2, D * 0.3, H), 0.025, "white", seg=8)
+    k.rod((-W / 2, D, 0.02), (W / 2, D, 0.02), 0.025, "white", seg=8)
+    n = 12                                       # net: wires across the sloping back
+    for i in range(1, n):
+        x = -W / 2 + W * i / n
+        k.pipe([(x, 0.0, H), (x, D * 0.3, H), (x, D, 0.02)], 0.005, "metal_grey", seg=4, caps=False)
+    for j in range(1, 7):
+        t = j / 7
+        y, z = D * 0.3 + (D - D * 0.3) * t, H * (1 - t)
+        k.rod((-W / 2, y, z), (W / 2, y, z), 0.005, "metal_grey", seg=4, caps=False)
+
+
 def hedge(P):
     """2 m of clipped hedge, leaf by leaf (trees.hedge)."""
     trees.hedge(P, 7)
@@ -931,6 +1231,10 @@ ASSETS = {
     "kiosk": kiosk, "mini_market": mini_market, "shop_window": shop_window, "bus_stop": bus_stop,
     "drinks_fridge": drinks_fridge, "ice_cream_freezer": ice_cream_freezer, "recycling_bins": recycling_bins,
     "clothes_dryer": clothes_dryer, "terrace_table": terrace_table, "fruit_stand": fruit_stand,
+    "gas_pipe": gas_pipe, "electric_box": electric_box, "wall_sign": wall_sign, "block_number": block_number,
+    "wall_lamp": wall_lamp, "utility_pole": utility_pole, "crossing_sign": crossing_sign, "hydrant": hydrant,
+    "manhole": manhole, "advert_column": advert_column, "picnic_table": picnic_table, "sandbox": sandbox,
+    "seesaw": seesaw, "basketball_hoop": basketball_hoop, "football_goal": football_goal,
 }
 PLANTS = {"hedge": hedge, "tree_pine": tree_pine, "tree_birch": tree_birch}    # built with trees.Plant
 

@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_si334"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/sandbox.res" id="2_7vuwh"]
+[ext_resource type="Shape3D" path="res://assets/meshes/sandbox_shape.res" id="3_4mllx"]
+
+[node name="sandbox" type="StaticBody3D" unique_id=1606399361]
+script = ExtResource("1_si334")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1601650534]
+mesh = ExtResource("2_7vuwh")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=666436993]
+shape = ExtResource("3_4mllx")

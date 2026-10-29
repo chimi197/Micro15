@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_lgd4k"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/crossing_sign.res" id="2_jqk06"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_tbe8g"]
+height = 3.0
+radius = 0.04
+
+[node name="crossing_sign" type="StaticBody3D" unique_id=2030587244]
+script = ExtResource("1_lgd4k")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=2029970631]
+mesh = ExtResource("2_jqk06")
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=1102067242]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("CylinderShape3D_tbe8g")

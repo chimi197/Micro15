@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/styled_model.gd" id="1_lr7b6"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/wall_sign.res" id="2_7fi0q"]
+
+[node name="wall_sign" type="StaticBody3D" unique_id=318418154]
+script = ExtResource("1_lr7b6")
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=953296910]
+mesh = ExtResource("2_7fi0q")
