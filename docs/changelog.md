@@ -24,6 +24,8 @@
   lighter far versions past 70 m, and small placed things stop drawing in
   the distance. `-- --shots` prints the draw calls and triangles of each
   shot, and takes shot names to render only those.
+* Footpaths and trails no longer let the ground show through them on
+  hillsides.
 
 ## 2026-10-28 (evening): the playable area, shops and a tidy repository
 

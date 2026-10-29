@@ -18,6 +18,8 @@ const TYPES := {
 			"side_material": "", "solid": false},
 }
 const STEP := 0.5                       ## metres between the points of a strip, along and across
+const AROUND: Array[Vector2] = [Vector2(0.4, 0), Vector2(-0.4, 0), Vector2(0, 0.4), Vector2(0, -0.4),
+	Vector2(0.28, 0.28), Vector2(-0.28, 0.28), Vector2(0.28, -0.28), Vector2(-0.28, -0.28)]
 const GRID := 8.0                       ## metres; cells of the lookup grid
 
 static var current: PathNetwork
@@ -192,8 +194,13 @@ func _build(i: int) -> void:
 	_nodes[i] = mi
 
 
+## A point of a path: on the highest ground within reach of it, so the
+## ground's creases between two points of the strip never poke through.
 func _at(p: Vector2, top: float) -> Vector3:
-	return Vector3(p.x, Terrain.height_at(p.x, p.y) + top, p.y)
+	var h := Terrain.height_at(p.x, p.y)
+	for d: Vector2 in AROUND:
+		h = maxf(h, Terrain.height_at(p.x + d.x, p.y + d.y))
+	return Vector3(p.x, h + top, p.y)
 
 
 ## Two triangles facing `facing` (Godot draws clockwise faces as the front).
