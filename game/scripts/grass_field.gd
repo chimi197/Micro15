@@ -21,6 +21,8 @@ extends Node3D
 @export var chunks_per_frame := 3        ## build budget while walking; a camera jump builds all at once
 @export_file("*.json") var paint_file := ""   ## grass brush strokes (admin tool)
 
+static var current: GrassField
+
 var _material: ShaderMaterial
 var _img: Image
 var _clump: Mesh
@@ -31,6 +33,7 @@ var _strokes: Array = []                 # [x, z, radius, add]
 
 
 func _ready() -> void:
+	current = self
 	_material = ShaderMaterial.new()
 	_material.shader = preload("res://shaders/grass.gdshader")
 	_load_mask()
@@ -92,6 +95,11 @@ func _build(key: Vector2i) -> void:
 func _pixel(x: float, z: float) -> Vector2i:
 	return Vector2i(int((x + size_m / 2.0) / size_m * _img.get_width()),
 			int((z + size_m / 2.0) / size_m * _img.get_height()))
+
+
+## Whether grass grows at (x, z) (footsteps, wildlife).
+func is_lawn(x: float, z: float) -> bool:
+	return _img != null and _lawn(x, z)
 
 
 func _lawn(x: float, z: float) -> bool:

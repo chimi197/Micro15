@@ -1,7 +1,8 @@
 {
  "gait_speed": {
-  "walk": 0.654,
-  "run": 2.634,
+  "walk": 0.912,
+  "jog": 1.693,
+  "run": 1.704,
   "crouch_walk": 0.351
  },
  "body_parts": {
@@ -51,5 +52,104 @@
   "hair_front",
   "hair_top",
   "hair_back"
+ ],
+ "face_mesh": "kid_head",
+ "face_shapes": [
+  "blink_L",
+  "blink_R",
+  "look_left",
+  "look_right",
+  "look_up",
+  "look_down",
+  "brows_up",
+  "brows_frown",
+  "smile",
+  "sad",
+  "mouth_open"
+ ],
+ "fingers": {
+  "L": [
+   "thumb_01.L",
+   "thumb_02.L",
+   "thumb_03.L",
+   "index_01.L",
+   "index_02.L",
+   "index_03.L",
+   "middle_01.L",
+   "middle_02.L",
+   "middle_03.L",
+   "ring_01.L",
+   "ring_02.L",
+   "ring_03.L",
+   "pinky_01.L",
+   "pinky_02.L",
+   "pinky_03.L"
+  ],
+  "R": [
+   "thumb_01.R",
+   "thumb_02.R",
+   "thumb_03.R",
+   "index_01.R",
+   "index_02.R",
+   "index_03.R",
+   "middle_01.R",
+   "middle_02.R",
+   "middle_03.R",
+   "ring_01.R",
+   "ring_02.R",
+   "ring_03.R",
+   "pinky_01.R",
+   "pinky_02.R",
+   "pinky_03.R"
+  ]
+ },
+ "hand_poses": [
+  "hand_relaxed",
+  "hand_fist",
+  "hand_grip",
+  "hand_point",
+  "hand_open"
+ ],
+ "slots": {
+  "garment_shirt": "top",
+  "garment_shorts": "bottom",
+  "garment_socks": "socks",
+  "garment_shoes": "shoes"
+ },
+ "foot_strikes": {
+  "walk": {
+   "L": 0.967,
+   "R": 0.467
+  },
+  "jog": {
+   "L": 0.033,
+   "R": 0.533
+  },
+  "run": {
+   "L": 0.0,
+   "R": 0.5
+  },
+  "crouch_walk": {
+   "L": 0.867,
+   "R": 0.483
+  }
+ },
+ "cycle": 1.0,
+ "loops": [
+  "idle",
+  "walk",
+  "jog",
+  "run",
+  "fall",
+  "crouch_idle",
+  "crouch_walk",
+  "sit_idle",
+  "push",
+  "carry_walk",
+  "slide_loop",
+  "idle_arms",
+  "idle_lean",
+  "swing_pump",
+  "breathe_hard"
  ]
 }

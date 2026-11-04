@@ -16,6 +16,9 @@ const TYPES := {
 			"side_material": "", "solid": false},
 	"trail": {"name": "Trail", "width": 1.2, "top": 0.03, "top_material": "C3_path_trail",
 			"side_material": "", "solid": false},
+	# the bare lines worn across the lawns by people taking the short way
+	"trodden": {"name": "Worn path", "width": 0.8, "top": 0.012, "top_material": "C3_path_trodden",
+			"side_material": "", "solid": false},
 }
 const STEP := 0.5                       ## metres between the points of a strip, along and across
 const AROUND: Array[Vector2] = [Vector2(0.4, 0), Vector2(-0.4, 0), Vector2(0, 0.4), Vector2(0, -0.4),
@@ -52,6 +55,12 @@ func _exit_tree() -> void:
 ## Whether (x, z) is on one of the paths.
 static func covers(x: float, z: float) -> bool:
 	return current != null and current.path_at(x, z) >= 0
+
+
+## Type of the path under (x, z), or "".
+func type_at(x: float, z: float) -> String:
+	var i := path_at(x, z)
+	return paths[i].get("type", "") if i >= 0 else ""
 
 
 ## The path under (x, z), or -1.

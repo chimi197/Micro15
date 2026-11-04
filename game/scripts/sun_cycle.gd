@@ -78,6 +78,9 @@ const PRESETS := {
 }
 
 var look := {}
+## 0 by day, 1 at night (dusk and dawn between); also the world_night shader
+## global. Static, so the night lights and the stars can read it.
+static var night := 0.0
 
 var _env: Environment
 var _sky: ProceduralSkyMaterial
@@ -203,6 +206,8 @@ func apply() -> void:
 	sun.shadow_blur = 1.5 * look.shadow_softness
 	if _env == null:
 		return
+	night = 1.0 - smoothstep(-6.0, 2.0, elevation)
+	RenderingServer.global_shader_parameter_set("world_night", night)
 	var dusk := day * low * low                            # sunrise / sunset glow
 	_env.ambient_light_energy = look.ambient * lerpf(0.3, 1.0, day)
 	_env.ambient_light_color = look.ambient_colour

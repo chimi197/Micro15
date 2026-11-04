@@ -1,5 +1,47 @@
 # What has changed
 
+## 2026-11-04: things to do, sound, night and a greener neighbourhood
+
+Following [the audit and roadmap](https://claude.ai/artifact/SU79qButQkqcUjkMs2j5FD).
+
+* **Things to use** ([playing](playing.md)). Benches (placed ones and the
+  map's 157), chess table stools and picnic tables to sit on; swings that
+  are real pendulums you pump higher; the seesaw; the slide (up the ladder,
+  down the chute); leaning on the carpet beater; kiosks and shops with
+  opening hours that sell things for bottle caps; a ball at every
+  playground, goal and hoop to kick, carry and throw. A prompt shows what
+  `E` (X on a pad) does. Nothing is written into the level files: the
+  game finds these things when it starts.
+* **Bottle caps** to find (60, by benches, playgrounds and kiosks) and
+  **memories**: a map editor pin whose note starts with `MEMORY:` becomes a
+  story to find and read in the journal.
+* **Photo mode** (`V`), the **journal** (Tab), a **pause menu** with
+  settings (look speed, invert, field of view, volumes, prompts, camera
+  dips) and **saving** (`user://save.json`).
+* **Sound**: 68 synthesised sounds. Footsteps by surface, landings, day and
+  night ambience, the swing's chains, the ball, caps, the till, and unseen
+  neighbours (a carpet being beaten, a ball against a wall, a door, a
+  window) at the blocks round the boy.
+* **Night**: windows light up one by one, some flicker with a television,
+  the street lamps glow and light the ground near the camera, stars and
+  the moon come out.
+* **Wind**: one breeze with gusts moves the grass and the trees together;
+  the grass bends away from the boy's feet.
+* **The boy** ([the character](character.md)). The player is split into
+  input, camera, animation, foot placement, look-at, face, personality and
+  breathing. Walk, jog and sprint blend in step with no sliding feet;
+  feet stand on kerbs and slopes; he looks at things nearby and at what
+  just happened, blinks, fidgets when left standing, gets out of breath.
+  Gamepad support everywhere. His hips are held on seats, so he sits on
+  the bench and the swing instead of hovering.
+* **The real Micro 15** ([research](research.md)). The neighbourhood was
+  studied from satellite pictures and street photos. The yards were far
+  too bare: 1,666 trees were planted where the real canopy is, raising tree
+  cover from about 7 % to about 49 % (the real one is about 58 %). A
+  "Worn path" type was added to the map editor's path tool for the dirt
+  shortcuts across the lawns.
+* `-- --perf` measures frame times along a route round the play area.
+
 ## 2026-10-29: shaping the ground, paths and a seamless edge
 
 * Two new map editor tools. **Terrain** (7) raises, lowers, flattens,

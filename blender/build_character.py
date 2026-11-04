@@ -92,12 +92,84 @@ for _s, _k in SIDES:
         "upper_arm." + _s: (arm_pt(_k, *SHOULDER), arm_pt(_k, 0.2, 0.012, 0.855), "shoulder." + _s, True),
         "forearm." + _s: (arm_pt(_k, 0.2, 0.012, 0.855), arm_pt(_k, 0.228, 0.0, 0.66), "upper_arm." + _s, True),
         "hand." + _s: (arm_pt(_k, 0.228, 0.0, 0.66), arm_pt(_k, 0.236, -0.004, 0.598), "forearm." + _s, True),
-        "fingers." + _s: (arm_pt(_k, 0.236, -0.004, 0.598), arm_pt(_k, 0.24, -0.006, 0.545), "hand." + _s, False),
         "thigh." + _s: ((_k * 0.085, 0.005, 0.69), (_k * 0.09, 0.0, 0.40), "hips", True),
         "shin." + _s: ((_k * 0.09, 0.0, 0.40), (_k * 0.092, 0.012, 0.085), "thigh." + _s, True),
         "foot." + _s: ((_k * 0.092, 0.012, 0.085), (_k * 0.092, -0.058, 0.025), "shin." + _s, True),
         "toe." + _s: ((_k * 0.092, -0.058, 0.025), (_k * 0.092, -0.12, 0.02), "foot." + _s, False),
     })
+
+
+# Fingers: three bones per finger and three for the thumb (the first is the
+# thumb's metacarpal, inside the palm), laid along the same curves the hand
+# mesh is modelled on (build_hands), so every finger bends on its own.
+FINGERS = (("index", 0.0195, 1.0), ("middle", 0.0065, 1.08), ("ring", -0.0065, 1.0), ("pinky", -0.0195, 0.82))
+FINGER_SEGS = ((0.022, 0.2), (0.016, 0.35), (0.014, 0.3))
+DIGITS = ("thumb",) + tuple(f[0] for f in FINGERS)
+
+
+def hand_axes(s, k):
+    """Wrist point, hand direction, palm normal (towards the body) and the
+    front direction (where the thumb is) of side s."""
+    W = V(BONES["hand." + s][0])
+    h = (V(BONES["hand." + s][1]) - W).normalized()
+    pn = V(-k, 0, 0)
+    pn = (pn - h * pn.dot(h)).normalized()
+    a = h.cross(pn).normalized()
+    if a.y > 0:
+        a = -a
+    return W, h, pn, a
+
+
+def finger_points(s, k):
+    """{digit: four joint points, base to tip} for side s."""
+    W, h, pn, a = hand_axes(s, k)
+    out = {}
+    for name, off, scale in FINGERS:
+        pts = [W + h * 0.056 + a * off + pn * 0.001]
+        d = h.copy()
+        for seg, bend in FINGER_SEGS:
+            d = (d * math.cos(bend) + pn * math.sin(bend)).normalized()
+            pts.append(pts[-1] + d * seg * scale)
+        out[name] = pts
+    tb = W + h * 0.018 + a * 0.026 + pn * 0.004
+    td = (h * 0.75 + a * 0.35 + pn * 0.45).normalized()
+    t1 = tb + td * 0.021
+    td2 = (td + pn * 0.3).normalized()
+    out["thumb"] = [W + h * 0.004 + a * 0.012 + pn * 0.002, tb, t1, t1 + td2 * 0.024]
+    return out
+
+
+for _s, _k in SIDES:
+    for _d, _pts in finger_points(_s, _k).items():
+        for _i in range(3):
+            BONES["%s_%02d.%s" % (_d, _i + 1, _s)] = (
+                tuple(_pts[_i]), tuple(_pts[_i + 1]),
+                "hand." + _s if _i == 0 else "%s_%02d.%s" % (_d, _i, _s), False)
+
+
+def finger_bones(s):
+    return ["%s_%02d.%s" % (d, i, s) for d in DIGITS for i in (1, 2, 3)]
+
+
+def chain_weights(p, pts, bones, root):
+    """Skin weights of a point of a finger: the hand near the knuckle, then
+    each finger bone in turn, cross-fading over a quarter of a segment at
+    every joint."""
+    best = None
+    for i in range(3):
+        a, b = pts[i], pts[i + 1]
+        ab = b - a
+        t = (p - a).dot(ab) / ab.length_squared
+        tc = min(max(t, 0.0), 1.0)
+        d = (p - (a + ab * tc)).length
+        if best is None or d < best[0]:
+            best = (d, i, t if i == 0 else tc)
+    _, i, t = best
+    x = i + min(t, 1.0)
+    A = smoothstep(-0.25, 0.15, x)
+    B = smoothstep(0.85, 1.15, x)
+    C = smoothstep(1.85, 2.15, x)
+    return {root: 1 - A, bones[0]: A * (1 - B), bones[1]: B * (1 - C), bones[2]: C}
 
 
 def head_of(b):
@@ -260,6 +332,22 @@ class Mesh:
         return ob
 
 
+def use_scene(scn):
+    """Shows scn in the window (when Blender has one) and returns the scene
+    shown before; without a window (blender --background, the bpy module)
+    the operators get the scene through scene_context instead."""
+    win = bpy.context.window
+    if win is None or scn is None:
+        return None
+    prev = win.scene
+    win.scene = scn
+    return prev
+
+
+def scene_context(scn, **kw):
+    return bpy.context.temp_override(scene=scn, view_layer=scn.view_layers[0], **kw)
+
+
 def attach(ob, arm):
     ob.parent = arm
     if not any(m.type == "ARMATURE" for m in ob.modifiers):
@@ -390,8 +478,8 @@ def build_body(scn, arm):
     body.select_set(True, view_layer=vl)
     arm.select_set(True, view_layer=vl)
     vl.objects.active = arm
-    with bpy.context.temp_override(active_object=arm, object=arm, selected_objects=[body, arm],
-                                   selected_editable_objects=[body, arm]):
+    with scene_context(scn, active_object=arm, object=arm, selected_objects=[body, arm],
+                       selected_editable_objects=[body, arm]):
         bpy.ops.object.parent_set(type="ARMATURE_AUTO")
     for b in arm.data.bones:
         b.use_deform = b.name != "root"
@@ -867,6 +955,94 @@ def build_head(col, arm):
     return head
 
 
+# The outfit slot of each garment: an outfit is one garment per slot.
+GARMENT_SLOTS = {"garment_shirt": "top", "garment_shorts": "bottom", "garment_socks": "socks",
+                 "garment_shoes": "shoes"}
+
+
+# Face shapes (blend shapes in the game): blinks, where the eyes look, the
+# brows and the mouth. They move the painted-on features of the face, so the
+# game can blink, glance at things and react without any face bones.
+FACE_SHAPES = ("blink_L", "blink_R", "look_left", "look_right", "look_up", "look_down",
+               "brows_up", "brows_frown", "smile", "sad", "mouth_open")
+
+
+def add_face_shapes(head):
+    me = head.data
+    names = [m.name[3:] if m else "" for m in me.materials]
+    feature = {}
+    for poly in me.polygons:
+        n = names[poly.material_index]
+        if n in ("sclera", "iris", "pupil", "lid", "brow", "mouth"):
+            for vi in poly.vertices:
+                feature.setdefault(vi, n)
+    co = [v.co.copy() for v in me.vertices]
+    eyes = {}
+    for side, k in SIDES:
+        pts = [co[i] for i, n in feature.items() if n == "sclera" and co[i].x * k > 0]
+        zs = [p.z for p in pts]
+        eyes[side] = {"x": sum(p.x for p in pts) / len(pts), "top": max(zs), "bottom": min(zs),
+                      "k": k}
+    iris_c = {}
+    for side, e in eyes.items():
+        pts = [co[i] for i, n in feature.items() if n == "iris" and co[i].x * e["k"] > 0]
+        iris_c[side] = sum(pts, Vector()) / len(pts)
+    mouth = [co[i] for i, n in feature.items() if n == "mouth"]
+    mx = max(abs(p.x) for p in mouth) or 1.0
+    mz = sum(p.z for p in mouth) / len(mouth)
+    head.shape_key_add(name="Basis", from_mix=False)
+
+    def side_of(p):
+        return "L" if p.x > 0 else "R"
+
+    def iris_part(i):
+        n = feature.get(i)
+        if n in ("iris", "pupil"):
+            return True
+        if n == "sclera":                      # the highlight dot sits over the iris
+            c = iris_c[side_of(co[i])]
+            return (co[i] - c).length < 0.0075 and abs(co[i].z - c.z) < 0.0075
+        return False
+
+    def shape(name, move):
+        key = head.shape_key_add(name=name, from_mix=False)
+        for i, p in enumerate(co):
+            d = move(i, p)
+            if d is not None:
+                key.data[i].co = p + d
+
+    for side, e in eyes.items():
+        h = e["top"] - e["bottom"]
+
+        def blink(i, p, side=side, e=e, h=h):
+            n = feature.get(i)
+            if n is None or side_of(p) != side or n in ("brow", "mouth"):
+                return None
+            if n == "lid":
+                return V(0, 0, -0.82 * h)
+            return V(0, 0.0004, -(p.z - e["bottom"]) * 0.88)
+
+        shape("blink_" + side, blink)
+    for name, d in (("look_left", V(0.0055, 0, 0)), ("look_right", V(-0.0055, 0, 0)),
+                    ("look_up", V(0, 0, 0.0022)), ("look_down", V(0, 0, -0.0032))):
+        shape(name, lambda i, p, d=d: d if iris_part(i) else None)
+    shape("brows_up", lambda i, p: V(0, 0, 0.0045) if feature.get(i) == "brow" else None)
+
+    def frown(i, p):
+        if feature.get(i) != "brow":
+            return None
+        u = min(1.0, max(0.0, (abs(p.x) - 0.016) / 0.045))
+        return V(0, 0, lerp(-0.0035, 0.001, u))
+
+    shape("brows_frown", frown)
+    shape("smile", lambda i, p: V(p.x * 0.12, 0, 0.0045 * (p.x / mx) ** 2 - 0.0006)
+          if feature.get(i) == "mouth" else None)
+    shape("sad", lambda i, p: V(0, 0, -0.0035 * (p.x / mx) ** 2 + 0.0008)
+          if feature.get(i) == "mouth" else None)
+    shape("mouth_open", lambda i, p: V(-p.x * 0.35, 0, (0.0032 if p.z > mz else -0.0032) * (1 - (p.x / mx) ** 2))
+          if feature.get(i) == "mouth" else None)
+
+
 def build_hair(col, arm, head_obj):
     """Hair: a cap that gives the head its volume, with a smooth hairline,
     and ~120 pointed locks layered on it whose tips flick outwards."""
@@ -991,41 +1167,36 @@ def build_hands(col, arm):
     hm = Mesh()
     skin = hm.mi("skin")
     for s, k in SIDES:
-        W = head_of("hand." + s)
-        h = bone_dir("hand." + s)
-        pn = V(-k, 0, 0)
-        pn = (pn - h * pn.dot(h)).normalized()
-        a = h.cross(pn).normalized()
-        if a.y > 0:
-            a = -a                                      # a points to the front, where the thumb is
+        W, h, pn, a = hand_axes(s, k)
         hand_w = {"hand." + s: 1.0}
         hm.loft([ring(W + h * t, h, rw, rt, 12, power=2.4, u=a) for t, rw, rt in
                  ((-0.006, 0.024, 0.011), (0.012, 0.028, 0.0125), (0.04, 0.031, 0.013), (0.062, 0.03, 0.011))],
                 skin, hand_w, cap0=True, cap1=True)
-        knuckle = W + h * 0.062
-
-        for off, scale in ((0.0195, 1.0), (0.0065, 1.08), (-0.0065, 1.0), (-0.0195, 0.82)):
-            base = W + h * 0.056 + a * off + pn * 0.001
-            d = h.copy()
-            pts, radius = [base], 0.0068
-            for seg, bend in ((0.022, 0.2), (0.016, 0.35), (0.014, 0.3)):
-                d = (d * math.cos(bend) + pn * math.sin(bend)).normalized()
-                pts.append(pts[-1] + d * seg * scale)
+        joints = finger_points(s, k)
+        for name, off, scale in FINGERS:
+            pts = joints[name]
+            d = (pts[3] - pts[2]).normalized()
+            radius = 0.0068
             rs = [ring(p, (pts[min(i + 1, 3)] - pts[max(i - 1, 0)]), radius * (1 - 0.18 * i / 3),
                        radius * (1 - 0.18 * i / 3), 8, u=a) for i, p in enumerate(pts)]
+            bones = ["%s_%02d.%s" % (name, i, s) for i in (1, 2, 3)]
 
-            def fw(p, s=s):
-                t = smoothstep(0.0, 0.012, (p - knuckle).dot(h))
-                return {"hand." + s: 1 - t, "fingers." + s: t}
+            def fw(p, pts=pts, bones=bones, s=s):
+                return chain_weights(p, pts, bones, "hand." + s)
 
             hm.loft(rs, skin, fw, cap0=True, tip=pts[-1] + d * 0.004)
-        tb = W + h * 0.018 + a * 0.026 + pn * 0.004
-        td = (h * 0.75 + a * 0.35 + pn * 0.45).normalized()
-        t1 = tb + td * 0.021
-        td2 = (td + pn * 0.3).normalized()
+        tpts = joints["thumb"]
+        tb, t1 = tpts[1], tpts[2]
+        td = (t1 - tb).normalized()
+        td2 = (tpts[3] - t1).normalized()
         t2 = t1 + td2 * 0.018
+        tbones = ["thumb_%02d.%s" % (i, s) for i in (1, 2, 3)]
+
+        def tw(p, s=s, tpts=tpts, tbones=tbones):
+            return chain_weights(p, tpts, tbones, "hand." + s)
+
         hm.loft([ring(tb, td, 0.0085, 0.0085, 8, u=a), ring(t1, td + td2, 0.0078, 0.0078, 8, u=a),
-                 ring(t2, td2, 0.0068, 0.0068, 8, u=a)], skin, hand_w, cap0=True, tip=t2 + td2 * 0.004)
+                 ring(t2, td2, 0.0068, 0.0068, 8, u=a)], skin, tw, cap0=True, tip=t2 + td2 * 0.004)
     return hm.to_object("kid_hands", col, arm)
 
 
@@ -1104,6 +1275,8 @@ def build_armature(scn):
     scn.collection.objects.link(arm)
     vl = scn.view_layers[0]
     vl.objects.active = arm
+    ctx = scene_context(scn, active_object=arm, object=arm, edit_object=arm)
+    ctx.__enter__()
     bpy.ops.object.mode_set(mode="EDIT")
     for name, (h, t, parent, deform) in BONES.items():
         eb = arm_data.edit_bones.new(name)
@@ -1114,6 +1287,7 @@ def build_armature(scn):
         if parent:
             eb.parent = arm_data.edit_bones[parent]
     bpy.ops.object.mode_set(mode="OBJECT")
+    ctx.__exit__(None, None, None)
     return arm
 
 
@@ -1124,6 +1298,7 @@ def build_armature(scn):
 CLIPS = {
     "idle": ("UAL1.glb", "Idle_Loop", True, True),
     "walk": ("UAL1.glb", "Walk_Loop", True, True),
+    "jog": ("UAL1.glb", "Jog_Fwd_Loop", True, True),
     "run": ("UAL1.glb", "Sprint_Loop", True, True),
     "jump": ("UAL1.glb", "Jump_Start", False, True),
     "fall": ("UAL1.glb", "Jump_Loop", True, False),
@@ -1134,8 +1309,33 @@ CLIPS = {
     "punch_jab": ("UAL1.glb", "Punch_Jab", False, True),
     "punch_cross": ("UAL1.glb", "Punch_Cross", False, True),
     "hit": ("UAL1.glb", "Hit_Chest", False, True),
+    # sitting on benches, kerbs and swings
+    "sit_down": ("UAL1.glb", "Sitting_Enter", False, True),
+    "sit_idle": ("UAL1.glb", "Sitting_Idle_Loop", True, True),
+    "sit_up": ("UAL1.glb", "Sitting_Exit", False, True),
+    # using things
+    "interact": ("UAL1.glb", "Interact", False, True),
+    "pick_up": ("UAL1.glb", "PickUp_Table", False, True),
+    "push": ("UAL1.glb", "Push_Loop", True, True),
+    "throw": ("UAL2.glb", "OverhandThrow", False, True),
+    "drink": ("UAL2.glb", "Consume", False, True),
+    "carry_walk": ("UAL2.glb", "Walk_Carry_Loop", True, True),
+    # moving over things
+    "climb_up": ("UAL2.glb", "ClimbUp_1m_RM", False, True),
+    "roll": ("UAL1.glb", "Roll", False, True),
+    "slide_start": ("UAL2.glb", "Slide_Start", False, True),
+    "slide_loop": ("UAL2.glb", "Slide_Loop", True, True),
+    "slide_exit": ("UAL2.glb", "Slide_Exit", False, True),
+    # standing about: what he does after a while with nothing to do
+    "idle_arms": ("UAL2.glb", "Idle_FoldArms_Loop", True, True),
+    "idle_lean": ("UAL2.glb", "Idle_Rail_Loop", True, True),
+    "idle_call": ("UAL2.glb", "Idle_Rail_Call", False, True),
+    "nod": ("UAL2.glb", "Yes", False, True),
+    "shake_head": ("UAL2.glb", "Idle_No_Loop", False, True),
 }
-GAITS = ("walk", "run", "crouch_walk")
+GAITS = ("walk", "jog", "run", "crouch_walk")
+CYCLE_GAITS = ("walk", "jog", "run")
+CYCLE = 1.0                          # seconds per gait cycle (two steps) of the walk, jog and run clips
 ARM_OUT = 0.04                       # radians the arms are held further out than the source (wider torso)
 HEAD_UP = 0.16                       # radians the head is tilted up from the source
 HEEL_REL = V(0, 0.058, -0.085)       # heel contact point, from the ankle
@@ -1163,13 +1363,18 @@ def animate(arm, root):
     ad = arm.animation_data_create()
     for t in list(ad.nla_tracks):
         ad.nla_tracks.remove(t)
-    speeds, stats = {}, {}
+    speeds, stats, base_poses, plants = {}, {}, {}, {}
     for name, (src, clip, loops, grounded) in CLIPS.items():
         rig = rigs[src]
         thigh = retarget_ual.BONE_MAPS[src]["thigh.L"]
         foot = retarget_ual.BONE_MAPS[src]["foot.L"]
         src_leg = (rig.data.bones[thigh].head_local - rig.data.bones[foot].head_local).length
         frames, src_rest, src_hips = retarget_ual.sample(lib_scene, rig, clip)
+        if name in CYCLE_GAITS:
+            # every gait cycle lasts CYCLE seconds, so the game can blend
+            # walk, jog and run in step and set the pace with one time scale
+            frames, src_rest, src_hips = retarget_ual.sample(lib_scene, rig, clip,
+                                                             speed=(len(frames) - 1) / FPS / CYCLE)
         poses = retarget_ual.retarget(arm, frames, src_rest, src_hips, src, leg / src_leg, ARM_OUT, HEAD_UP)
         fks = [retarget_ual.forward_kinematics(arm, local, delta) for local, delta in poses]
         lift = 0.0
@@ -1177,6 +1382,7 @@ def animate(arm, root):
             lift = -min(min(p.z for p in _contacts(arm, m)) for m in fks)
         if name in GAITS:
             speeds[name] = round(_stance_speed(arm, fks), 3)
+            plants[name] = _foot_strikes(arm, fks, lift)
         old = bpy.data.actions.get(name)
         if old:
             bpy.data.actions.remove(old)
@@ -1196,10 +1402,173 @@ def animate(arm, root):
         track.strips.new(name, 1, action)
         ad.action = None
         stats[name] = {"frames": len(poses), "lift": round(lift, 3)}
+        base_poses[name] = poses[0][0], poses[0][1] + V(0, 0, lift)
+    # clips the library has no take for, posed here from its other clips
+    for name, (base, length, loops, keys) in procedural_clips().items():
+        local0, delta0 = base_poses[base]
+        n = max(1, round(length * FPS))
+        frames = []
+        for f in range(n + 1):
+            frames.append(_offset_pose(arm, local0, delta0, keys(f / n)))
+        _write_action(arm, ad, name, frames)
+        stats[name] = {"frames": len(frames), "procedural": base}
+    for name, curls in HAND_POSES.items():
+        local = {}
+        for s, _ in SIDES:
+            for d in DIGITS:
+                for i in (1, 2, 3):
+                    b = "%s_%02d.%s" % (d, i, s)
+                    joint = curls[d] if d in curls else curls["fingers"]
+                    local[b] = _curl(arm, b, s, joint[i - 1])
+        _write_action(arm, ad, name, [(local, None), (local, None)], bones=list(local))
+        stats[name] = {"frames": 2, "hand_pose": True}
     for pb in arm.pose.bones:
         pb.rotation_quaternion = (1, 0, 0, 0)
         pb.location = (0, 0, 0)
+    stats["foot_strikes"] = plants
     return speeds, stats
+
+
+# Hand poses: how far (radians) each joint of the fingers and the thumb
+# curls towards the palm. They key only the finger bones, so the game can lay
+# one over any clip (a fist for a punch, a grip on a swing chain...).
+HAND_POSES = {
+    "hand_relaxed": {"fingers": (0.15, 0.2, 0.1), "thumb": (0.0, 0.1, 0.1)},
+    "hand_fist": {"fingers": (1.35, 1.5, 0.9), "thumb": (0.35, 0.6, 0.6)},
+    "hand_grip": {"fingers": (0.95, 1.1, 0.7), "thumb": (0.25, 0.55, 0.45)},
+    "hand_point": {"fingers": (1.35, 1.5, 0.9), "index": (0.0, 0.05, 0.05), "thumb": (0.35, 0.6, 0.6)},
+    "hand_open": {"fingers": (-0.12, -0.1, -0.05), "thumb": (-0.15, -0.1, 0.0)},
+}
+
+
+def _curl(arm, bone, s, angle):
+    """Pose basis that curls a finger bone by angle towards the palm."""
+    k = 1 if s == "L" else -1
+    _, _, pn, _ = hand_axes(s, k)
+    b = arm.data.bones[bone]
+    rest = b.matrix_local.to_3x3().normalized()
+    axis = (rest @ V(0, 1, 0)).cross(pn).normalized()
+    return (rest.inverted() @ Matrix.Rotation(angle, 3, axis) @ rest).to_quaternion()
+
+
+def _key(t, pts):
+    """Smooth curve through [(t, value)]."""
+    return catmull(pts, min(max(t, 0.0), 1.0))
+
+
+def procedural_clips():
+    """name: (clip whose first frame is the base pose, seconds, loops,
+    keys(t) -> ({bone: (armature-space axis, angle)}, hips offset))."""
+    X = V(1, 0, 0)
+
+    def kick(t):
+        thigh = _key(t, [(0, 0.0), (0.3, 0.4), (0.52, -1.05), (0.72, -0.35), (1.0, 0.0)])
+        shin = _key(t, [(0, 0.0), (0.3, 1.35), (0.52, 0.08), (0.72, 0.4), (1.0, 0.0)])
+        foot = _key(t, [(0, 0.0), (0.3, 0.2), (0.52, -0.35), (1.0, 0.0)])
+        lean = _key(t, [(0, 0.0), (0.52, -0.16), (1.0, 0.0)])
+        arm_l = _key(t, [(0, 0.0), (0.52, -0.6), (1.0, 0.0)])
+        arm_r = _key(t, [(0, 0.0), (0.52, 0.45), (1.0, 0.0)])
+        return ({"thigh.R": (X, thigh), "shin.R": (X, shin), "foot.R": (X, foot), "spine": (X, lean),
+                 "upper_arm.L": (X, arm_l), "upper_arm.R": (X, arm_r)},
+                V(0, 0, _key(t, [(0, 0.0), (0.52, 0.02), (1.0, 0.0)])))
+
+    def pump(t):
+        c = math.cos(2 * math.pi * t)
+        return ({"shin.L": (X, -0.55 * c + 0.2), "shin.R": (X, -0.55 * c + 0.2),
+                 "thigh.L": (X, -0.15 * c), "thigh.R": (X, -0.15 * c),
+                 "spine": (X, 0.14 * c), "chest": (X, 0.08 * c)}, V(0, 0, 0))
+
+    def wave(t):
+        a = _key(t, [(0, 0.0), (0.2, -2.3), (0.8, -2.3), (1.0, 0.0)])
+        w = math.sin(t * 6 * math.pi) * 0.35 if 0.2 < t < 0.8 else 0.0
+        return ({"upper_arm.R": (V(0, 1, 0), a * 0.5), "forearm.R": (V(0, 1, 0), a * 0.35 + w)}, V(0, 0, 0))
+
+    def scratch(t):
+        a = _key(t, [(0, 0.0), (0.25, -2.0), (0.75, -2.0), (1.0, 0.0)])
+        f = _key(t, [(0, 0.0), (0.25, 2.2), (0.75, 2.2), (1.0, 0.0)]) + (
+            math.sin(t * 10 * math.pi) * 0.15 if 0.25 < t < 0.75 else 0.0)
+        tilt = _key(t, [(0, 0.0), (0.3, 0.15), (0.7, 0.15), (1.0, 0.0)])
+        return ({"upper_arm.L": (X, a), "forearm.L": (V(0, 0, 1), f * 0.4), "head": (V(0, 1, 0), tilt)},
+                V(0, 0, 0))
+
+    def look_back(t):
+        y = _key(t, [(0, 0.0), (0.3, 0.9), (0.7, 0.9), (1.0, 0.0)])
+        return ({"spine1": (V(0, 0, 1), y * 0.25), "chest": (V(0, 0, 1), y * 0.25), "neck": (V(0, 0, 1), y * 0.3),
+                 "head": (V(0, 0, 1), y * 0.35)}, V(0, 0, 0))
+
+    def breathe(t):
+        b = math.sin(2 * math.pi * t)
+        return ({"chest": (X, -0.035 * b), "shoulder.L": (V(0, 1, 0), 0.03 * b),
+                 "shoulder.R": (V(0, 1, 0), -0.03 * b)}, V(0, 0, 0.002 * b))
+
+    return {
+        "kick": ("idle", 0.75, False, kick),
+        "swing_pump": ("sit_idle", 1.8, True, pump),
+        "wave": ("idle", 1.8, False, wave),
+        "scratch_head": ("idle", 2.2, False, scratch),
+        "look_back": ("idle", 2.6, False, look_back),
+        "breathe_hard": ("idle", 0.9, True, breathe),
+    }
+
+
+def _offset_pose(arm, local0, delta0, keyed):
+    """The base pose with extra rotations about armature-space axes at some
+    joints (applied parent first) and the hips moved."""
+    rots, hips = keyed
+    local = dict(local0)
+    order = [b.name for b in arm.data.bones]
+    for name in order:
+        if name not in rots:
+            continue
+        axis, angle = rots[name]
+        mats = retarget_ual.forward_kinematics(arm, local, delta0)
+        m = mats[name].to_3x3().normalized().to_quaternion()
+        r = Matrix.Rotation(angle, 3, axis).to_quaternion()
+        local[name] = (local[name] @ m.inverted() @ r @ m).normalized()
+    return local, delta0 + hips
+
+
+def _write_action(arm, ad, name, frames, bones=None):
+    """Keys [(local rotations, hips offset or None)] as an action on its own
+    NLA track."""
+    old = bpy.data.actions.get(name)
+    if old:
+        bpy.data.actions.remove(old)
+    action = bpy.data.actions.new(name)
+    action.use_fake_user = True
+    ad.action = action
+    rest_hips = arm.data.bones["hips"].matrix_local.to_3x3().inverted()
+    for f, (local, delta) in enumerate(frames):
+        for pb in arm.pose.bones:
+            if bones is not None and pb.name not in bones:
+                continue
+            pb.rotation_quaternion = local[pb.name]
+            pb.keyframe_insert("rotation_quaternion", frame=f + 1)
+        if delta is not None:
+            hp = arm.pose.bones["hips"]
+            hp.location = rest_hips @ delta
+            hp.keyframe_insert("location", frame=f + 1)
+    track = ad.nla_tracks.new()
+    track.name = name
+    track.strips.new(name, 1, action)
+    ad.action = None
+
+
+def _foot_strikes(arm, fks, lift):
+    """{side: phase 0..1} at which each foot comes down in a gait cycle (the
+    game plays a footstep there)."""
+    out = {}
+    for i, (s, _) in enumerate(SIDES):
+        hz = [min(p.z for p in _contacts(arm, m)[2 * i:2 * i + 2]) + lift for m in fks]
+        lo = min(hz)
+        n = len(hz) - 1
+        best = 0
+        for f in range(n):
+            if hz[f] < lo + 0.012 and hz[f - 1] >= lo + 0.012:
+                best = f
+                break
+        out[s] = round(best / max(n, 1), 3)
+    return out
 
 
 def _stance_speed(arm, fks):
@@ -1230,8 +1599,7 @@ def min_gap(ob, bvh, where):
 def run(root):
     scn = bpy.data.scenes.get("Character") or bpy.data.scenes.new("Character")
     scn.render.fps = FPS
-    prev = bpy.context.window.scene
-    bpy.context.window.scene = scn
+    prev = use_scene(scn)
     try:
         for ob in list(scn.collection.all_objects):
             bpy.data.objects.remove(ob, do_unlink=True)
@@ -1251,6 +1619,7 @@ def run(root):
                 "socks_over_body": min_gap(socks, sample.bvh, lambda p: True)}
         pieces = split_body(body, col, arm)
         head = build_head(col, arm)
+        add_face_shapes(head)
         hair = build_hair(col, arm, head)
         hands = build_hands(col, arm)
         shoes = build_shoes(col, arm)
@@ -1265,18 +1634,29 @@ def run(root):
             "garments": {g: {"hides": h} for g, h in OUTFIT.items()},
             "outfit": list(OUTFIT),
             "spring_bones": ["hair_front", "hair_top", "hair_back"],
+            "face_mesh": "kid_head",
+            "face_shapes": list(FACE_SHAPES),
+            "fingers": {s: finger_bones(s) for s, _ in SIDES},
+            "hand_poses": list(HAND_POSES),
+            "slots": {g: GARMENT_SLOTS[g] for g in OUTFIT},
+            "foot_strikes": clips.get("foot_strikes", {}),
+            "cycle": CYCLE,
+            "loops": [n for n, c in CLIPS.items() if c[2]] +
+                     [n for n, c in procedural_clips().items() if c[2]],
         }
         with open(os.path.join(out, "kid.json"), "w") as f:
             json.dump(info, f, indent=1)
         vl = scn.view_layers[0]
         for ob in scn.objects:
             ob.select_set(ob is arm or ob in parts, view_layer=vl)
-        bpy.ops.export_scene.gltf(filepath=os.path.join(out, "kid.glb"), export_format="GLB", use_selection=True,
-                                  use_active_scene=True, export_yup=True, export_skins=True,
-                                  export_animations=True, export_animation_mode="NLA_TRACKS", export_morph=False,
-                                  export_apply=False)
+        with scene_context(scn):
+            bpy.ops.export_scene.gltf(filepath=os.path.join(out, "kid.glb"), export_format="GLB",
+                                      use_selection=True, use_active_scene=True, export_yup=True,
+                                      export_skins=True, export_animations=True,
+                                      export_animation_mode="NLA_TRACKS", export_morph=True,
+                                      export_morph_normal=False, export_apply=False)
     finally:
-        bpy.context.window.scene = prev
+        use_scene(prev)
     return {"tris": {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in parts},
             "gaps": gaps, "clips": clips, "gait_speed": info["gait_speed"]}
 

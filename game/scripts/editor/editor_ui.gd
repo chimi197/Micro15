@@ -518,8 +518,9 @@ func _page_paths() -> VBoxContainer:
 	v.add_child(EditorTheme.hint("Click to put down the points of a path, double click or Enter to finish it. "
 			+ "Backspace takes the last point back, Esc cancels. Paths follow the ground and grass makes way "
 			+ "for them; a sidewalk is raised with kerbs, a footpath is paving level with the lawn, a trail "
-			+ "is packed earth."))
-	_choice_row(v, [["sidewalk", "Sidewalk"], ["footpath", "Footpath"], ["trail", "Trail"]], editor.path_type,
+			+ "is packed earth, a worn path the line kids wear across a lawn."))
+	_choice_row(v, [["sidewalk", "Sidewalk"], ["footpath", "Footpath"], ["trail", "Trail"], ["trodden", "Worn"]],
+			editor.path_type,
 			func(t: String) -> void:
 				editor.path_type = t
 				path_width_slider.value = PathNetwork.TYPES[t].width)
