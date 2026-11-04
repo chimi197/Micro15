@@ -23,7 +23,7 @@ const FAMILIES := {
 	"wood": {"roughness": 0.8, "specular": 0.2, "variation": 0.06, "variation_scale": 2.0},
 	"bark": {"roughness": 0.95, "specular": 0.1, "variation": 0.1, "variation_scale": 1.5},
 	"glass": {"roughness": 0.08, "specular": 0.6},
-	"lamp_glass": {"roughness": 0.3, "specular": 0.4, "glow": 0.25},
+	"lamp_glass": {"roughness": 0.3, "specular": 0.4, "glow": 0.25, "night_glow": 9.0},
 	"fabric": {"roughness": 1.0, "specular": 0.1, "variation": 0.02},
 	"rubber": {"roughness": 0.9, "specular": 0.15},
 	"soil": {"roughness": 1.0, "specular": 0.05, "variation": 0.12, "speckle": 0.1},
@@ -44,7 +44,8 @@ const MATCH := [
 	["hospital", "plaster"], ["retail", "plaster"], ["parapet", "plaster"],
 	["plinth", "concrete"], ["slab", "concrete"], ["kerb", "concrete"], ["step", "concrete"],
 	["canopy", "concrete"], ["concrete", "concrete"], ["chess_dark", "concrete"],
-	["asphalt", "asphalt"], ["parking", "asphalt"], ["pavement", "paving"], ["path", "gravel"],
+	["asphalt", "asphalt"], ["parking", "asphalt"], ["pavement", "paving"], ["path_trodden", "soil"],
+	["path", "gravel"],
 	["sand", "gravel"], ["line", "paint"], ["lawn", "lawn"], ["pitch", "lawn"],
 	["metal_grey", "bare_metal"], ["metal", "painted_metal"], ["fence", "painted_metal"],
 	["bin", "painted_metal"], ["container", "painted_metal"], ["dish", "painted_metal"], ["ac", "painted_metal"],
@@ -73,7 +74,7 @@ const PALETTE := {
 	"C3_slab": "#cfc8b8", "C3_roof": "#7d7a74", "C3_roof_tile": "#b0583f", "C3_roof_dark": "#6a4a3e",
 	# ground
 	"C3_asphalt": "#65686f", "C3_parking": "#6f727a", "C3_pavement": "#cfc7b6", "C3_kerb": "#a9a194",
-	"C3_path": "#d6c49a", "C3_path_trail": "#b39467", "C3_sand": "#dcc595", "C3_line": "#ebe6d6", "C3_lawn": "#84a656",
+	"C3_path": "#d6c49a", "C3_path_trail": "#b39467", "C3_path_trodden": "#9c8466", "C3_sand": "#dcc595", "C3_line": "#ebe6d6", "C3_lawn": "#84a656",
 	"C3_pitch": "#6f9a4e",
 	# foliage
 	"C3_leaf_a": "#5f9748", "C3_leaf_b": "#77a84c", "C3_leaf_c": "#4e8443", "C3_poplar": "#4a7f45",
@@ -130,6 +131,9 @@ static func make(material_name: String, model_colour: Color, instance_tint := fa
 				mat.set_shader_parameter(key, fam[key])
 	if mat.shader == SHADERS.stylized:
 		mat.set_shader_parameter("instance_tint", instance_tint)
+		# window glass of the blocks (not bottles): some windows light up at night
+		if material_name.begins_with("C3_glass") and not "glare" in material_name:
+			mat.set_shader_parameter("lit_windows", 0.42)
 	if mat.shader == SHADERS.foliage:
 		var modelled := material_name.trim_suffix("_core") in MODELLED_LEAVES
 		mat.set_shader_parameter("leaf_shade", 0.22 if modelled else 0.0)

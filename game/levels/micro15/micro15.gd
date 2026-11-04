@@ -52,23 +52,52 @@ const SHOTS := {
 	"time_evening": [Vector3(-34.5, 2.6, 224.6), Vector3(51.5, 8.0, 215.1), Vector3(-30.0, 0.15, 220.6)],
 	"time_night": [Vector3(-34.5, 2.6, 224.6), Vector3(51.5, 8.0, 215.1), Vector3(-30.0, 0.15, 220.6)],
 }
+# shots of the boy using things: [interactable class, camera offset and
+# look-at point in its own space, phase or seconds to wait before the shot]
+const USE_SHOTS := {
+	"kid_bench": ["Seat", Vector3(1.5, 1.1, 2.4), Vector3(0, 0.3, 0.2), 2.5],
+	"kid_swing": ["SwingSeat", Vector3(1.2, -0.7, 3.4), Vector3(-0.3, -1.3, 0.0), 3.0],
+	"kid_slide": ["SlideUse", Vector3(3.0, 1.6, 0.6), Vector3(0, 0.9, 0.6), "slide"],
+}
 # shots at another time of day (SunCycle); the rest are at its default
 const SHOT_TIMES := {"time_morning": 8.0, "time_evening": 20.4, "time_night": 23.5}
 
 @onready var player: CharacterBody3D = $Player
 
 
+var director: InteractionDirector
+var hud: Hud
+
+
 func _ready() -> void:
+	director = InteractionDirector.new()
+	director.name = "Interactions"
+	add_child(director)
+	hud = Hud.new()
+	hud.name = "Hud"
+	hud.player = player
+	add_child(hud)
+	var world := WorldState.new()
+	world.name = "WorldState"
+	world.player = player
+	add_child(world)
+	var sound := SoundDirector.new()
+	sound.name = "Sound"
+	sound.player = player
+	add_child(sound)
 	if "--shots" in OS.get_cmdline_user_args():
 		_take_shots.call_deferred()
 	elif "--selftest" in OS.get_cmdline_user_args():
 		_self_test.call_deferred()
+	elif "--perf" in OS.get_cmdline_user_args():
+		_perf.call_deferred()
 	elif "--editor-shots" in OS.get_cmdline_user_args():
 		_editor_shots.call_deferred()
 
 
 func _take_shots() -> void:
 	player.set_physics_process(false)
+	player.rig.frozen = true
 	var cam := Camera3D.new()
 	cam.fov = 60
 	cam.far = 3000
@@ -77,7 +106,10 @@ func _take_shots() -> void:
 	var lineup := Node3D.new()
 	add_child(lineup)
 	# `-- --shots kid_front map_edge` takes only the shots named.
-	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return a in SHOTS)
+	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return a in SHOTS or a in USE_SHOTS)
+	for shot_name in USE_SHOTS:
+		if shot_name in only:
+			await _use_shot(shot_name, cam)
 	for shot_name in SHOTS:
 		if not only.is_empty() and shot_name not in only:
 			continue
@@ -109,6 +141,117 @@ func _take_shots() -> void:
 				Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 				Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1e6])
 		get_viewport().get_texture().get_image().save_png(render_path(shot_name))
+	get_tree().quit()
+
+
+## The boy using something for real (its interact and drive), then a shot.
+func _use_shot(shot_name: String, cam: Camera3D) -> void:
+	var spec: Array = USE_SHOTS[shot_name]
+	var it: Interactable = null
+	for n in get_tree().get_nodes_in_group("interactable"):
+		if n.get_script() and n.get_script().get_global_name() == spec[0]:
+			if it == null or n.global_position.distance_to(player.global_position) < it.global_position.distance_to(player.global_position):
+				it = n
+	if it == null:
+		return
+	$SunCycle.time_of_day = 12.0
+	$SunCycle.apply()
+	player.visible = true
+	player.animator.tree.active = true
+	player.set_physics_process(true)
+	player.global_position = it.focus_point() + Vector3.UP * 0.05
+	await get_tree().physics_frame
+	it.interact(player)
+	if spec[0] == "SwingSeat":
+		(it as SwingSeat).angle = 0.7
+	var t := 0.0
+	while true:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+		cam.global_position = it.to_global(spec[1])
+		cam.look_at(it.to_global(spec[2]))
+		if spec[3] is String:
+			if it.get("phase") == spec[3] and it.get("_s") > 0.25:
+				break
+		elif t >= spec[3]:
+			break
+		if t > 20.0:
+			break
+	player.set_physics_process(false)
+	it.set_physics_process(false)
+	player.animator.tree.active = false
+	for i in 6:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(render_path(shot_name))
+	print("%-16s taken after %.1f s" % [shot_name, t])
+	player.animator.tree.active = true
+	player.detach(player.global_position)
+
+
+## `-- --perf`: walks a camera at a child's eye height round the play area
+## (and once above it) and measures every frame: frame time, draw calls,
+## triangles. Prints the average, the 95th percentile and the slowest spots,
+## and writes every sample to user://perf.csv. Run it on the PC that should
+## run the game; the numbers in a software renderer mean little.
+func _perf() -> void:
+	player.set_physics_process(false)
+	player.rig.frozen = true
+	var cam := Camera3D.new()
+	cam.fov = 60
+	cam.far = 3000
+	add_child(cam)
+	cam.make_current()
+	var route: Array[Vector3] = []
+	var b: Boundary = $Boundary
+	var c := Vector2.ZERO
+	for p in b.polygon:
+		c += p
+	c /= maxf(b.polygon.size(), 1)
+	for p in b.polygon:                       # round the inside of the edge, at eye height
+		var q := c.lerp(p, 0.8)
+		route.append(Vector3(q.x, 1.4, q.y))
+	route.append(Vector3(c.x, 1.4, c.y))
+	route.append(Vector3(c.x, 60.0, c.y + 120.0))
+	await get_tree().create_timer(2.0).timeout
+	var rows := PackedStringArray(["t,x,z,ms,draw_calls,triangles"])
+	var times: Array[float] = []
+	var worst: Array = []
+	var t := 0.0
+	for i in route.size() - 1:
+		var a := route[i]
+		var z := route[i + 1]
+		var legs := maxi(1, int(a.distance_to(z) / 5.0))      # 5 m/s
+		var steps := legs * 60
+		for k in steps:
+			var p := a.lerp(z, float(k) / steps)
+			var ahead := a.lerp(z, minf(1.0, float(k + 30) / steps))
+			cam.global_position = p
+			if ahead.distance_to(p) > 0.01:
+				cam.look_at(ahead + Vector3(0, -0.2 if p.y < 5.0 else -30.0, 0))
+			var t0 := Time.get_ticks_usec()
+			await get_tree().process_frame
+			var ms := (Time.get_ticks_usec() - t0) / 1000.0
+			t += ms / 1000.0
+			var dc := Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+			var tri := Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
+			rows.append("%.2f,%.1f,%.1f,%.2f,%d,%d" % [t, p.x, p.z, ms, dc, tri])
+			times.append(ms)
+			worst.append([ms, p, dc, tri])
+	times.sort()
+	worst.sort_custom(func(x: Array, y: Array) -> bool: return x[0] > y[0])
+	var avg := 0.0
+	for x in times:
+		avg += x
+	avg /= maxf(times.size(), 1)
+	var f := FileAccess.open("user://perf.csv", FileAccess.WRITE)
+	if f:
+		f.store_string("\n".join(rows))
+	print("perf: %d frames, average %.1f ms (%.0f fps), 95th percentile %.1f ms, slowest %.1f ms" % [times.size(),
+			avg, 1000.0 / maxf(avg, 0.01), times[int(times.size() * 0.95)] if times.size() > 0 else 0.0,
+			times[-1] if times.size() > 0 else 0.0])
+	for w in worst.slice(0, 5):
+		print("  slow: %.1f ms at x %.0f, z %.0f (%d draw calls, %.2fM triangles)" % [w[0], w[1].x, w[1].z, w[2], w[3] / 1e6])
+	print("every frame: ", ProjectSettings.globalize_path("user://perf.csv"))
 	get_tree().quit()
 
 
@@ -222,13 +365,19 @@ func _line_up_assets(parent: Node3D, start: Vector3, length: float) -> void:
 
 
 func _self_test() -> void:
+	if "interactions" in OS.get_cmdline_user_args():     # `-- --selftest interactions`: just those
+		await get_tree().create_timer(1.0).timeout
+		await _test_interactions()
+		get_tree().quit()
+		return
 	var start := player.position
 	var report := func(label: String) -> void:
-		print("%-10s anim=%-12s speed_scale=%.2f on_floor=%s crouch=%s pos=%s" % [label,
-				player.anim.current_animation, player.anim.speed_scale, player.is_on_floor(), player.crouching,
+		print("%-10s anim=%-12s mode=%-6s speed=%.2f stride=%.2f on_floor=%s crouch=%s pos=%s" % [label,
+				player.animator.current(), player.animator.mode, Vector2(player.velocity.x, player.velocity.z).length(),
+				player.animator.tree.get("parameters/loco_scale/scale"), player.is_on_floor(), player.crouching,
 				player.position.round()])
 	var phase := func() -> float:
-		return player.anim.current_animation_position / player.anim.current_animation_length
+		return player.animator.gait_phase
 	var wait := func(seconds: float) -> void:
 		await get_tree().create_timer(seconds).timeout
 	var tap := func(action: String) -> void:
@@ -251,11 +400,12 @@ func _self_test() -> void:
 	Input.action_press("run")
 	var last := 0.0
 	for i in 30:
-		if player.anim.current_animation == "walk":
+		if player.animator.current() == "walk":
 			last = phase.call()
 		await get_tree().physics_frame
-		if player.anim.current_animation == "run":
-			print("walk phase %.2f -> run phase %.2f" % [last, phase.call()])
+		if player.animator.current() != "walk":
+			print("walk phase %.2f -> %s phase %.2f (one shared cycle, so no jump)" % [last,
+					player.animator.current(), phase.call()])
 			break
 	await wait.call(1.0)
 	report.call("run")
@@ -306,6 +456,7 @@ func _self_test() -> void:
 	await _test_boundary()
 	await _test_ground_and_paths()
 	await _test_tools()
+	await _test_interactions()
 	get_tree().quit()
 
 
@@ -560,3 +711,168 @@ func _test_tools() -> void:
 	details.removed_file = saved[1]
 	buildings.saving = true
 	grass.paint_file = saved[3]
+
+
+## Uses one of everything: a bench, a swing (pumping it up), the slide, the
+## seesaw, a shop, a ball, a bottle cap, the pause menu and photo mode.
+func _test_interactions() -> void:
+	var d := director
+	var count := func(cls: String) -> int:
+		return get_tree().get_nodes_in_group("interactable").filter(func(n: Node) -> bool:
+			return n.get_script() and n.get_script().get_global_name() == cls).size()
+	print("interactables: %d seats, %d swing seats, %d seesaw ends, %d slides, %d lean spots, %d shops, %d memories, %d balls, %d caps" % [
+			count.call("Seat"), count.call("SwingSeat"), count.call("SeesawSeat"), count.call("SlideUse"),
+			count.call("LeanSpot"), count.call("Shop"), d.memories.size(), d.balls.size(), d.caps.total() if d.caps else 0])
+	var wait := func(seconds: float) -> void:
+		await get_tree().create_timer(seconds).timeout
+	var tap := func(action: String) -> void:
+		Input.action_press(action)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		Input.action_release(action)
+	var nearest := func(cls: String) -> Interactable:
+		var best: Interactable = null
+		for n in get_tree().get_nodes_in_group("interactable"):
+			if n.get_script() and n.get_script().get_global_name() == cls:
+				if best == null or n.global_position.distance_to(player.global_position) < best.global_position.distance_to(player.global_position):
+					best = n
+		return best
+	var go_to := func(it: Interactable) -> void:
+		var p := it.focus_point()
+		player.global_position = Vector3(p.x, p.y + 0.05, p.z) - (it.global_basis.z * 0.0)
+		player.velocity = Vector3.ZERO
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		# settle: using needs him on the ground and not in the middle of a move
+		for i in 60:
+			if player.is_on_floor() and player._locked <= 0.0:
+				break
+			await get_tree().physics_frame
+	var hips_error := func() -> float:
+		if player.hips_pin == Vector3.INF:
+			return -1.0
+		var sk: Skeleton3D = player.skeleton
+		var h := sk.global_transform * sk.get_bone_global_pose(sk.find_bone("hips")).origin
+		return h.distance_to(player.hips_pin)
+	# a bench
+	var seat: Interactable = nearest.call("Seat")
+	if seat:
+		await go_to.call(seat)
+		print("bench: focus %s, prompt '%s'" % [player.focus != null, hud._prompt_text.text if hud._prompt.visible else ""])
+		await tap.call("interact")
+		await wait.call(2.0)
+		print("bench: sitting %s (%s), anim %s, hips %.3f m from the seat" % [player.attached != null,
+				player.attached.get_script().get_global_name() if player.attached else "-", player.animator.current(), hips_error.call()])
+		await tap.call("interact")
+		await wait.call(1.0)
+		print("bench: got up %s, on floor %s" % [player.attached == null, player.is_on_floor()])
+	# a swing, pumped in time
+	var swing: SwingSeat = nearest.call("SwingSeat")
+	if swing:
+		await go_to.call(swing)
+		swing.interact(player)
+		var top := 0.0
+		for i in 360:
+			var a := "move_forward" if swing.speed >= 0.0 else "move_back"
+			Input.action_release("move_forward")
+			Input.action_release("move_back")
+			Input.action_press(a)
+			await get_tree().physics_frame
+			top = maxf(top, absf(swing.angle))
+		Input.action_release("move_forward")
+		Input.action_release("move_back")
+		print("swing: pumped for 6 s, highest %.0f degrees, anim %s, hips %.3f m off the seat" % [rad_to_deg(top), player.animator.current(), hips_error.call()])
+		await tap.call("interact")
+		await wait.call(0.5)
+		print("swing: got off %s" % (player.attached == null))
+	# the slide
+	var slide: SlideUse = nearest.call("SlideUse")
+	if slide:
+		await go_to.call(slide)
+		slide.interact(player)
+		var seen := {}
+		var fastest := 0.0
+		for i in 600:
+			seen[slide.phase] = true
+			fastest = maxf(fastest, slide._v)
+			if player.attached == null:
+				break
+			await get_tree().physics_frame
+		print("slide: phases %s, top speed %.1f m/s, off %s at %s" % [seen.keys(), fastest, player.attached == null,
+				slide.to_local(player.global_position).snapped(Vector3.ONE * 0.1)])
+	# the seesaw (none is on the map yet: put one down for the test, not saved)
+	var saw: SeesawSeat = nearest.call("SeesawSeat")
+	var placed_root := get_node_or_null("Placed")
+	if saw == null and placed_root:
+		var thing: Node3D = load("res://assets/seesaw.tscn").instantiate()
+		placed_root.add_child(thing)
+		thing.global_position = player.global_position + Vector3(4.0, 0.0, 0.0)
+		await wait.call(0.3)
+		saw = nearest.call("SeesawSeat")
+	if saw:
+		await go_to.call(saw)
+		saw.interact(player)
+		await wait.call(1.2)
+		var low := saw.tilt
+		await tap.call("jump")
+		var high := low
+		for i in 40:
+			await get_tree().physics_frame
+			high = maxf(high, saw.tilt) if saw.side == 1 else minf(high, saw.tilt)
+		print("seesaw: pushed off, beam from %.0f to %.0f degrees" % [rad_to_deg(low), rad_to_deg(high)])
+		await wait.call(1.0)
+		await tap.call("interact")
+		await wait.call(0.5)
+	# a shop
+	var shop: Shop = nearest.call("Shop")
+	if shop:
+		Save.data.caps = 5
+		await go_to.call(shop)
+		var before := Save.caps()
+		var what := shop.prompt_for(player)
+		shop.interact(player)
+		print("shop (%s): '%s', caps %d -> %d" % [shop.kind, what, before, Save.caps()])
+		await wait.call(2.0)
+	# a ball: kick it, pick it up, throw it
+	if not d.balls.is_empty():
+		var ball: Ball = d.balls[0]
+		ball.linear_velocity = Vector3.ZERO
+		player.global_position = ball.global_position - Vector3(0, ball.global_position.y - ball.spot.y + Ball.RADIUS, 0.6)
+		player.body_mesh.rotation.y = 0.0
+		await wait.call(0.3)
+		await tap.call("punch")
+		await wait.call(0.6)
+		print("ball: kicked at %.1f m/s" % ball.linear_velocity.length())
+		for i in 60:
+			await wait.call(0.1)
+			if ball.linear_velocity.length() < 0.3:
+				break
+		player.global_position = ball.global_position + Vector3(0, -Ball.RADIUS, -0.5)
+		player.body_mesh.rotation.y = 0.0
+		await wait.call(0.3)
+		print("ball: rolled to %s, focus %s" % [ball.global_position.snapped(Vector3.ONE * 0.1),
+				player.focus.get_script().get_global_name() if player.focus else "nothing"])
+		await tap.call("interact")
+		await wait.call(0.8)
+		print("ball: carried %s, mode %s" % [player.carrying == ball, player.animator.mode])
+		await tap.call("interact")
+		await wait.call(1.0)
+		print("ball: thrown, flying at %.1f m/s, carried %s" % [ball.linear_velocity.length(), player.carrying != null])
+	# a bottle cap
+	if d.caps and not d.caps.caps.is_empty():
+		var c: Array = d.caps.caps[0]
+		var before := Save.caps()
+		player.global_position = c[1] + Vector3.UP * 0.05
+		await wait.call(0.4)
+		print("cap: walked onto %s, caps %d -> %d" % [c[0], before, Save.caps()])
+	# pause and photo mode
+	hud._pause.toggle()
+	await get_tree().process_frame
+	print("pause: paused %s, menu shown %s" % [get_tree().paused, hud._pause.visible])
+	hud._pause.toggle()
+	hud.photo.enter()
+	await get_tree().process_frame
+	print("photo mode: on %s, paused %s" % [hud.photo.active, get_tree().paused])
+	hud.photo.leave()
+	print("photo mode: off, paused %s" % get_tree().paused)
+	player.global_position = Vector3(-30.0, 0.3, 220.6)

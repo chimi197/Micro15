@@ -10,23 +10,35 @@ Mini-games may use other camera styles later.
 
 Open `game/` in Godot 4.7 and press F5.
 
-| Key | Action |
-| --- | --- |
-| WASD, mouse | Move, look |
-| Shift | Run |
-| Space | Jump; press again in the air for a double jump (a flip) |
-| Ctrl or C | Crouch (hold) |
-| Left click or F | Punch: a jab, then a cross if pressed again quickly |
-| Esc | Free the mouse |
-| F1 | Map editor (only when run from the Godot editor) |
-| F4 | Show the player's position |
+| Keyboard and mouse | Gamepad | Action |
+| --- | --- | --- |
+| WASD, mouse | Left stick, right stick | Move, look |
+| Shift (hold) | Left trigger | Jog; tap Shift twice to sprint |
+| | Click the left stick | Sprint |
+| Space | A | Jump; press again in the air for a double jump (a flip) |
+| Ctrl or C | B | Crouch (hold) |
+| Left click or F | Y | Punch: a jab, then a cross if pressed again quickly. Next to a ball: kick it |
+| E | X | Use what the prompt shows: sit, swing, slide, buy, pick up, read a memory |
+| V | Back | Photo mode |
+| Tab (hold) | Click the right stick | Journal: caps, photos, memories |
+| Esc | Start | Pause menu: settings and controls |
+| F1 | | Map editor (only when run from the Godot editor) |
+| F4 | | Show the player's position |
+
+What there is to do, the caps, the memories and the sound are described in
+[playing](docs/playing.md).
 
 Run options:
 
 * `-- --shots` saves the preview screenshots to `docs/renders/` and quits.
 * `-- --editor-shots` saves screenshots of the map editor.
-* `-- --selftest` drives the player through every move and checks the map
-  editor, the kerbs and the boundary, printing what happened.
+* `-- --selftest` drives the player through every move, checks the map
+  editor, the kerbs and the boundary, then uses one of everything (bench,
+  swing, slide, seesaw, shop, ball, cap, pause menu, photo mode), printing
+  what happened. `-- --selftest interactions` runs only the last part.
+* `-- --perf` walks a camera round the play area and prints frame times
+  (average, 95th percentile and the slowest places) to measure the game on
+  a given PC.
 
 ## Documentation
 
@@ -35,7 +47,9 @@ Run options:
 | [The map](docs/map.md) | The playable area set by the corner pins, the boundary, how the map is built and rebuilt, and the corner test scene |
 | [The editor](docs/editor.md) | The scenes in the Godot editor, the in-game map editor (F1), and the files it saves |
 | [The assets](docs/assets.md) | Every placeable asset, and how to make new ones |
-| [The character](docs/character.md) | The boy: body, garments, rig and animations |
+| [Playing](docs/playing.md) | Things to use, bottle caps, memories, photo mode, the journal, saving, sound, night and wind |
+| [The character](docs/character.md) | The boy: body, garments, rig, animations and the parts that move him in the game |
+| [The real Micro 15](docs/research.md) | What the neighbourhood looks like from above and from the street, and what changed in the game because of it |
 | [The art direction](docs/art_direction.md) | The look: light, materials, palette, detail and the rules for new assets |
 | [The Blender world](docs/blender_world.md) | The first Blender version of the whole neighbourhood |
 | [What has changed](docs/changelog.md) | The history of the project |
@@ -49,12 +63,17 @@ game/                    the Godot 4.7 project
   assets/                placeable assets (scenes, meshes, the street kit source)
   characters/kid/        the playable boy
   player/                the player scene
-  scripts/               game scripts; scripts/editor/ is the map editor
+  scripts/               game scripts; scripts/editor/ is the map editor,
+                         player/ the boy's parts, interact/ things to use,
+                         ui/ the HUD and menus, audio/ sound, world/ wind and night
+  audio/                 the sounds (made by tools/make_sounds.py)
   shaders/, style/       shaders and shared materials
   tools/make_assets.gd   turns models into asset scenes
 blender/                 Blender scripts that build the map, assets, trees and the boy
-tools/                   Python tools: play area, grass mask, animation download
-reference/               OpenStreetMap extract, the character sheet, the style reference
+tools/                   Python tools: play area, grass mask, animation download,
+                         sounds, satellite tree comparison
+reference/               OpenStreetMap extract, the character sheet, the style reference,
+                         notes on the real neighbourhood
 docs/                    documentation; docs/renders/ holds the screenshots by subject
 ```
 
@@ -78,3 +97,7 @@ They run in this order:
 * Animations: Quaternius'
   [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html)
   1 and 2 (CC0).
+* Sounds: synthesised by `tools/make_sounds.py`, no recordings.
+* Satellite imagery (Esri World Imagery) and the Wikimedia Commons photos
+  used for research are kept on the development PC only; their sources and
+  licences are listed in `reference/photos/sources.md`.

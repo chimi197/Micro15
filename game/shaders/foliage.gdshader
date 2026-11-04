@@ -19,6 +19,8 @@ uniform float sway = 0.06;
 uniform float sway_from = 2.0;      // metres above the origin where swaying starts
 uniform float flutter = 0.0;
 
+global uniform vec4 wind;
+
 #include "res://shaders/soft_light.gdshaderinc"
 
 varying float v_up;
@@ -28,10 +30,11 @@ void vertex() {
 	vec3 origin = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 	float h = max(VERTEX.y - sway_from, 0.0);
 	float t = TIME * 1.3 + origin.x * 0.2 + origin.z * 0.15;
-	VERTEX.x += sin(t) * sway * h * 0.15;
-	VERTEX.z += cos(t * 0.8) * sway * h * 0.1;
+	float w = wind.z / 0.18;                 // 1 in the usual breeze
+	VERTEX.x += sin(t) * sway * h * 0.15 * w;
+	VERTEX.z += cos(t * 0.8) * sway * h * 0.1 * w;
 	// each leaf flutters a little, its tip more than its base
-	VERTEX += NORMAL * sin(TIME * 3.1 + UV.x * 40.0) * flutter * UV.y;
+	VERTEX += NORMAL * sin(TIME * 3.1 + UV.x * 40.0) * flutter * UV.y * (0.5 + 0.5 * w);
 	v_up = NORMAL.y;
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }

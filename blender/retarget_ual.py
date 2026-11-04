@@ -19,6 +19,7 @@ from mathutils import Matrix, Vector
 
 UAL_FILES = ("UAL1.glb", "UAL2.glb")
 SIDES = (("L", "l"), ("R", "r"))
+DIGITS = ("thumb", "index", "middle", "ring", "pinky")
 
 
 def _map_ual1():
@@ -28,7 +29,10 @@ def _map_ual1():
         for kid, src in (("shoulder", "shoulder"), ("upper_arm", "upper_arm"), ("forearm", "forearm"),
                          ("hand", "hand"), ("thigh", "thigh"), ("shin", "shin"), ("foot", "foot"), ("toe", "toe")):
             m[kid + "." + s] = "DEF-%s.%s" % (src, s)
-        m["fingers." + s] = "DEF-f_middle.01." + s
+        for d in DIGITS:
+            for i in (1, 2, 3):
+                m["%s_%02d.%s" % (d, i, s)] = ("DEF-thumb.%02d.%s" % (i, s) if d == "thumb"
+                                                else "DEF-f_%s.%02d.%s" % (d, i, s))
     return m
 
 
@@ -37,15 +41,17 @@ def _map_ual2():
          "head": "Head"}
     for s, t in SIDES:
         for kid, src in (("shoulder", "clavicle"), ("upper_arm", "upperarm"), ("forearm", "lowerarm"),
-                         ("hand", "hand"), ("thigh", "thigh"), ("shin", "calf"), ("foot", "foot"), ("toe", "ball"),
-                         ("fingers", "middle_01")):
+                         ("hand", "hand"), ("thigh", "thigh"), ("shin", "calf"), ("foot", "foot"), ("toe", "ball")):
             m[kid + "." + s] = "%s_%s" % (src, t)
+        for d in DIGITS:
+            for i in (1, 2, 3):
+                m["%s_%02d.%s" % (d, i, s)] = "%s_%02d_%s" % (d, i, t)
     return m
 
 
 BONE_MAPS = {"UAL1.glb": _map_ual1(), "UAL2.glb": _map_ual2()}
 HIPS = {"UAL1.glb": "DEF-hips", "UAL2.glb": "pelvis"}
-ARM_CHAIN = ("upper_arm", "forearm", "hand", "fingers")
+ARM_CHAIN = ("upper_arm", "forearm", "hand") + tuple("%s_%02d" % (d, i) for d in DIGITS for i in (1, 2, 3))
 
 
 def load_library(root):
@@ -56,12 +62,15 @@ def load_library(root):
     rigs = {o["ual_src"]: o for o in scn.objects if o.type == "ARMATURE" and "ual_src" in o}
     missing = [f for f in UAL_FILES if f not in rigs]
     if missing:
-        prev = bpy.context.window.scene
-        bpy.context.window.scene = scn
+        win = bpy.context.window
+        prev = win.scene if win else None
+        if win:
+            win.scene = scn
         try:
             for f in missing:
                 before = set(bpy.data.objects)
-                bpy.ops.import_scene.gltf(filepath=os.path.join(root, "tools", "downloads", "ual", f))
+                with bpy.context.temp_override(scene=scn, view_layer=scn.view_layers[0], collection=scn.collection):
+                    bpy.ops.import_scene.gltf(filepath=os.path.join(root, "tools", "downloads", "ual", f))
                 for o in set(bpy.data.objects) - before:
                     if o.type == "ARMATURE":
                         o["ual_src"] = f
@@ -69,7 +78,8 @@ def load_library(root):
                     else:
                         bpy.data.objects.remove(o)      # the mannequin meshes only slow sampling down
         finally:
-            bpy.context.window.scene = prev
+            if win:
+                win.scene = prev
     for f, rig in rigs.items():
         durations = _durations(os.path.join(root, "tools", "downloads", "ual", f))
         for a in bpy.data.actions:
